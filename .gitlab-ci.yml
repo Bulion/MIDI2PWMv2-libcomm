@@ -1,0 +1,21 @@
+stages:
+  - build
+
+build:gcc:
+  image: gcc:13
+  stage: build
+  before_script:
+    - apt-get update && apt-get install -y cmake git
+  script:
+    - cmake -S . -B build
+    - cmake --build build
+
+build:arm:
+  image: debian:stable-slim
+  stage: build
+  before_script:
+    - apt-get update && apt-get install -y cmake git gcc-arm-none-eabi
+  script:
+    - cmake -S . -B build -DCMAKE_C_COMPILER=arm-none-eabi-gcc -DCMAKE_CXX_COMPILER=arm-none-eabi-g++
+    - cmake --build build
+
