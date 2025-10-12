@@ -9,8 +9,8 @@ STL so it can drop straight into embedded builds.
 
 ## Highlights
 - Fetches FlatBuffers v2.0.8 and ETL 20.37.1 via CMake `FetchContent`.
-- Generates C++ sources from `schemas/midi_messages.fbs` and exposes a lightweight
-  `libcomm::Endpoint` helper for sending and parsing payloads.
+- Generates C++ sources from the FlatBuffers schemas in `schemas/` and exposes
+  lightweight helpers for MIDI (`libcomm::Endpoint`) and PWM (`libcomm::PwmEndpoint`).
 - Provides optional desktop examples that move messages through a simple D-Bus
   transport (`libcomm_dbus_sender` / `libcomm_dbus_receiver`).
 
@@ -31,6 +31,19 @@ Endpoint callbacks can be registered for Ping (utility), channel voice, system
 common, system real-time and SysEx messages. Builders in
 `include/libcomm/endpoint.h` produce ready-to-send FlatBuffers envelopes for
 each MIDI message type.
+
+## PWM communication
+
+The new PWM schemas (`pwm_*.fbs`) cover configuration, telemetry and fault
+handling between the ESP32 UI and STM32 power stage:
+
+- `ChannelConfig` captures the static setup of each PWM output.
+- `ChannelTelemetry` conveys live electrical measurements and status.
+- `FaultLog` and `FaultControlCommand` provide fault introspection and control.
+
+Use `libcomm::PwmEndpoint` from `include/libcomm/pwm_endpoint.h` to send and
+receive these envelopes. The D-Bus examples demonstrate exercising both MIDI
+and PWM traffic on a desktop host.
 
 ## Building
 ```bash

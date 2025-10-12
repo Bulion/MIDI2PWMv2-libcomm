@@ -1,5 +1,6 @@
 #include "dbus_transport.h"
 #include "libcomm/endpoint.h"
+#include "libcomm/pwm_endpoint.h"
 
 #include <csignal>
 #include <cstdint>
@@ -66,6 +67,60 @@ void PrintSystemExclusive(const midi2pwm::midi::SystemExclusiveMessage &message)
         payload ? static_cast<unsigned int>(payload->size()) : 0U);
 }
 
+void PrintChannelTelemetry(const midi2pwm::pwm::ChannelTelemetry &telemetry)
+{
+    std::printf(
+        "[receiver] PWM telemetry - channel: %u, config: %u, status: %u, voltage: %.2f, current: %.2f, "
+        "midpoint: %.2f, min: %.2f, max: %.2f, had_fault: %s\n",
+        static_cast<unsigned int>(telemetry.channel_number()),
+        static_cast<unsigned int>(telemetry.configuration()),
+        static_cast<unsigned int>(telemetry.status()),
+        telemetry.voltage(),
+        telemetry.current(),
+        telemetry.midpoint(),
+        telemetry.min_point(),
+        telemetry.max_point(),
+        telemetry.had_fault() ? "true" : "false");
+}
+
+void PrintChannelConfig(const midi2pwm::pwm::ChannelConfig &config)
+{
+    std::printf(
+        "[receiver] PWM config - channel: %u, config: %u, note: %u, midpoint: %.2f, min: %.2f, max: %.2f\n",
+        static_cast<unsigned int>(config.channel_number()),
+        static_cast<unsigned int>(config.configuration()),
+        static_cast<unsigned int>(config.note()),
+        config.midpoint(),
+        config.min_point(),
+        config.max_point());
+}
+
+void PrintFaultLog(const midi2pwm::pwm::FaultLog &log)
+{
+    const auto *entries = log.entries();
+    std::printf("[receiver] PWM fault log - size: %u, reported entries: %u\n",
+                static_cast<unsigned int>(log.log_size()),
+                entries ? static_cast<unsigned int>(entries->size()) : 0U);
+    if (entries) {
+        for (flatbuffers::uoffset_t i = 0; i < entries->size(); ++i) {
+            const auto *entry = entries->Get(i);
+            if (!entry) {
+                continue;
+            }
+            std::printf("  - entry[%u]: timestamp=%u, fault=%u\n",
+                        static_cast<unsigned int>(i),
+                        entry->timestamp_ms(),
+                        static_cast<unsigned int>(entry->fault()));
+        }
+    }
+}
+
+void PrintFaultControl(const midi2pwm::pwm::FaultControlCommand &command)
+{
+    std::printf("[receiver] PWM fault control command - operation: %u\n",
+                static_cast<unsigned int>(command.operation()));
+}
+
 bool KeepRunning()
 {
     return g_running;
@@ -73,12 +128,27 @@ bool KeepRunning()
 
 } // namespace
 
+struct CombinedHandler
+{
+    libcomm::Endpoint &midi;
+    libcomm::PwmEndpoint &pwm;
+
+    bool operator()(const std::uint8_t *data, std::size_t size) const
+    {
+        if (midi.HandleIncoming(data, size)) {
+            return true;
+        }
+        return pwm.HandleIncoming(data, size);
+    }
+};
+
 int main()
 {
     std::signal(SIGINT, HandleSignal);
 
     libcomm::examples::DBusServerTransport server(kAddress);
     libcomm::Endpoint endpoint(libcomm::Endpoint::WriteCallback::create<&NullWrite>());
+    libcomm::PwmEndpoint pwm_endpoint(libcomm::PwmEndpoint::WriteCallback::create<&NullWrite>());
 
     endpoint.OnPing(libcomm::Endpoint::PingHandler::create<&PrintPing>());
     endpoint.OnChannelMessage(libcomm::Endpoint::ChannelMessageHandler::create<&PrintChannel>());
@@ -86,8 +156,14 @@ int main()
     endpoint.OnSystemRealTime(libcomm::Endpoint::SystemRealTimeHandler::create<&PrintSystemRealTime>());
     endpoint.OnSystemExclusive(libcomm::Endpoint::SystemExclusiveHandler::create<&PrintSystemExclusive>());
 
-    if (!server.Start(libcomm::examples::DBusServerTransport::RawMessageHandler::
-                          create<const libcomm::Endpoint, &libcomm::Endpoint::HandleIncoming>(endpoint))) {
+    pwm_endpoint.OnChannelTelemetry(libcomm::PwmEndpoint::ChannelTelemetryHandler::create<&PrintChannelTelemetry>());
+    pwm_endpoint.OnChannelConfig(libcomm::PwmEndpoint::ChannelConfigHandler::create<&PrintChannelConfig>());
+    pwm_endpoint.OnFaultLog(libcomm::PwmEndpoint::FaultLogHandler::create<&PrintFaultLog>());
+    pwm_endpoint.OnFaultControl(libcomm::PwmEndpoint::FaultControlHandler::create<&PrintFaultControl>());
+
+    CombinedHandler handler{endpoint, pwm_endpoint};
+
+    if (!server.Start(libcomm::examples::DBusServerTransport::RawMessageHandler::create(handler))) {
         std::fprintf(stderr, "[receiver] Failed to start D-Bus server transport.\n");
         return 1;
     }

@@ -1,5 +1,6 @@
 #include "dbus_transport.h"
 #include "libcomm/endpoint.h"
+#include "libcomm/pwm_endpoint.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -44,6 +45,7 @@ int main()
     }
 
     libcomm::Endpoint endpoint(client.MakeWriteCallback());
+    libcomm::PwmEndpoint pwm_endpoint(client.MakeWriteCallback());
 
     auto ping = libcomm::BuildPingMessage(1U, TimestampNow());
     if (!endpoint.Send(std::move(ping))) {
@@ -88,6 +90,63 @@ int main()
         return 1;
     }
     std::printf("[sender] SystemExclusive message sent.\n");
+
+    SleepMilliseconds(50U);
+
+    auto pwm_config = libcomm::BuildChannelConfigMessage(
+        0U,
+        midi2pwm::pwm::ChannelConfiguration::FullBridge,
+        60U,
+        0.5F,
+        0.0F,
+        1.0F);
+    if (!pwm_endpoint.Send(std::move(pwm_config))) {
+        std::fprintf(stderr, "[sender] Failed to send PWM ChannelConfig message.\n");
+        return 1;
+    }
+    std::printf("[sender] PWM ChannelConfig message sent.\n");
+
+    SleepMilliseconds(50U);
+
+    auto pwm_telemetry = libcomm::BuildChannelTelemetryMessage(
+        0U,
+        midi2pwm::pwm::ChannelConfiguration::FullBridge,
+        midi2pwm::pwm::ChannelStatus::Active,
+        60U,
+        12.3F,
+        1.25F,
+        0.52F,
+        0.05F,
+        0.95F,
+        false);
+    if (!pwm_endpoint.Send(std::move(pwm_telemetry))) {
+        std::fprintf(stderr, "[sender] Failed to send PWM telemetry message.\n");
+        return 1;
+    }
+    std::printf("[sender] PWM telemetry message sent.\n");
+
+    SleepMilliseconds(50U);
+
+    const libcomm::FaultLogEntryData fault_entries[] = {
+        {static_cast<std::uint32_t>(TimestampNow() & 0xFFFFFFFFULL), midi2pwm::pwm::FaultType::OverCurrent},
+        {static_cast<std::uint32_t>((TimestampNow() + 42ULL) & 0xFFFFFFFFULL), midi2pwm::pwm::FaultType::Thermal},
+    };
+    auto pwm_fault_log = libcomm::BuildFaultLogMessage(2U, fault_entries, 2U);
+    if (!pwm_endpoint.Send(std::move(pwm_fault_log))) {
+        std::fprintf(stderr, "[sender] Failed to send PWM fault log message.\n");
+        return 1;
+    }
+    std::printf("[sender] PWM fault log message sent.\n");
+
+    SleepMilliseconds(50U);
+
+    auto pwm_fault_control =
+        libcomm::BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation::Reset);
+    if (!pwm_endpoint.Send(std::move(pwm_fault_control))) {
+        std::fprintf(stderr, "[sender] Failed to send PWM fault control command.\n");
+        return 1;
+    }
+    std::printf("[sender] PWM fault control command sent.\n");
 
     return 0;
 }
