@@ -1,0 +1,18 @@
+include "pwm_types.fbs";
+
+namespace midi2pwm.pwm;
+
+// Snapshot of the accumulated fault log for the power stage.
+
+table FaultLogEntry {
+  timestamp_ms: uint32;
+  fault: FaultType;
+}
+
+table FaultLog {
+  log_size: uint32;
+  entries: [FaultLogEntry];
+}
+
+root_type FaultLog;
+file_identifier "PWLG";
