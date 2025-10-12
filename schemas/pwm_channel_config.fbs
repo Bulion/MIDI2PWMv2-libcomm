@@ -1,0 +1,17 @@
+include "pwm_types.fbs";
+
+namespace midi2pwm.pwm;
+
+// Static configuration describing how a PWM output channel is programmed.
+
+table ChannelConfig {
+  channel_number: uint16;
+  configuration: ChannelConfiguration = FullBridge;
+  note: uint16;
+  midpoint: float;    // Only meaningful when configuration == FullBridge.
+  min_point: float;
+  max_point: float;
+}
+
+root_type ChannelConfig;
+file_identifier "PWCF";
