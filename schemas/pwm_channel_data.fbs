@@ -1,0 +1,21 @@
+include "pwm_types.fbs";
+
+namespace midi2pwm.pwm;
+
+// Telemetry snapshot for a single PWM output channel.
+
+table ChannelTelemetry {
+  channel_number: uint16;
+  configuration: ChannelConfiguration = FullBridge;
+  status: ChannelStatus = Inactive;
+  note: uint16;
+  voltage: float;
+  current: float;
+  midpoint: float;
+  min_point: float;
+  max_point: float;
+  had_fault: bool = false;
+}
+
+root_type ChannelTelemetry;
+file_identifier "PWDT";
