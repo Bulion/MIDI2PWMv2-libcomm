@@ -9,10 +9,28 @@ STL so it can drop straight into embedded builds.
 
 ## Highlights
 - Fetches FlatBuffers v2.0.8 and ETL 20.37.1 via CMake `FetchContent`.
-- Generates C++ sources from `schemas/comm.fbs` and exposes a lightweight
+- Generates C++ sources from `schemas/midi_messages.fbs` and exposes a lightweight
   `libcomm::Endpoint` helper for sending and parsing payloads.
 - Provides optional desktop examples that move messages through a simple D-Bus
   transport (`libcomm_dbus_sender` / `libcomm_dbus_receiver`).
+
+## MIDI 1.0 coverage
+
+The FlatBuffers schema and helper builders cover the full MIDI 1.0 message
+surface:
+
+- **Channel Voice**: Note On/Off, Polyphonic Key Pressure, Control Change,
+  Program Change, Channel Pressure, Pitch Bend.
+- **System Common**: Time Code Quarter Frame, Song Position Pointer, Song
+  Select, Tune Request.
+- **System Real-Time**: Timing Clock, Start, Continue, Stop, Active Sensing,
+  System Reset.
+- **System Exclusive**: Manufacturer ID plus arbitrary payload blocks.
+
+Endpoint callbacks can be registered for Ping (utility), channel voice, system
+common, system real-time and SysEx messages. Builders in
+`include/libcomm/endpoint.h` produce ready-to-send FlatBuffers envelopes for
+each MIDI message type.
 
 ## Building
 ```bash
@@ -39,5 +57,5 @@ cmake -S . -B build -DLIBCOMM_BUILD_EXAMPLES=OFF
    ./build/libcomm_dbus_sender
    ```
 
-The receiver prints the decoded `Ping` and `ControlChange` messages once they
-arrive over the D-Bus session bus.
+The receiver prints the decoded Ping, channel voice, system common, real-time
+and SysEx messages once they arrive over the D-Bus session bus.

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "comm_generated.h"
 #include "flatbuffers/flatbuffers.h"
+#include "midi_messages_generated.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -14,8 +14,11 @@ class Endpoint
 {
 public:
     using WriteCallback = etl::delegate<bool(const std::uint8_t *, std::size_t)>;
-    using PingHandler = etl::delegate<void(const midi2pwm::comm::Ping &)>;
-    using ControlChangeHandler = etl::delegate<void(const midi2pwm::comm::ControlChange &)>;
+    using PingHandler = etl::delegate<void(const midi2pwm::midi::Ping &)>;
+    using ChannelMessageHandler = etl::delegate<void(const midi2pwm::midi::ChannelMessage &)>;
+    using SystemCommonHandler = etl::delegate<void(const midi2pwm::midi::SystemCommonMessage &)>;
+    using SystemRealTimeHandler = etl::delegate<void(const midi2pwm::midi::SystemRealTimeMessage &)>;
+    using SystemExclusiveHandler = etl::delegate<void(const midi2pwm::midi::SystemExclusiveMessage &)>;
 
     explicit Endpoint(WriteCallback write);
 
@@ -27,16 +30,42 @@ public:
     bool HandleIncoming(const std::uint8_t *data, std::size_t size) const;
 
     void OnPing(PingHandler handler);
-    void OnControlChange(ControlChangeHandler handler);
+    void OnChannelMessage(ChannelMessageHandler handler);
+    void OnSystemCommon(SystemCommonHandler handler);
+    void OnSystemRealTime(SystemRealTimeHandler handler);
+    void OnSystemExclusive(SystemExclusiveHandler handler);
 
 private:
     WriteCallback write_;
     PingHandler ping_handler_;
-    ControlChangeHandler control_change_handler_;
+    ChannelMessageHandler channel_handler_;
+    SystemCommonHandler system_common_handler_;
+    SystemRealTimeHandler system_real_time_handler_;
+    SystemExclusiveHandler system_exclusive_handler_;
 };
 
 flatbuffers::DetachedBuffer BuildPingMessage(std::uint32_t sequence, std::uint64_t timestamp);
+flatbuffers::DetachedBuffer BuildNoteOffMessage(std::uint8_t channel, std::uint8_t note, std::uint8_t velocity);
+flatbuffers::DetachedBuffer BuildNoteOnMessage(std::uint8_t channel, std::uint8_t note, std::uint8_t velocity);
+flatbuffers::DetachedBuffer
+BuildPolyphonicKeyPressureMessage(std::uint8_t channel, std::uint8_t note, std::uint8_t pressure);
 flatbuffers::DetachedBuffer
 BuildControlChangeMessage(std::uint8_t channel, std::uint8_t controller, std::uint8_t value);
+flatbuffers::DetachedBuffer BuildProgramChangeMessage(std::uint8_t channel, std::uint8_t program);
+flatbuffers::DetachedBuffer BuildChannelPressureMessage(std::uint8_t channel, std::uint8_t pressure);
+flatbuffers::DetachedBuffer BuildPitchBendMessage(std::uint8_t channel, std::uint16_t value);
+
+flatbuffers::DetachedBuffer BuildTimeCodeQuarterFrameMessage(std::uint8_t value);
+flatbuffers::DetachedBuffer BuildSongPositionPointerMessage(std::uint16_t position);
+flatbuffers::DetachedBuffer BuildSongSelectMessage(std::uint8_t song_number);
+flatbuffers::DetachedBuffer BuildTuneRequestMessage();
+
+flatbuffers::DetachedBuffer BuildSystemRealTimeMessage(midi2pwm::midi::SystemRealTimeType type);
+
+flatbuffers::DetachedBuffer BuildSystemExclusiveMessage(
+    const std::uint8_t *manufacturer_id,
+    std::size_t manufacturer_id_length,
+    const std::uint8_t *payload,
+    std::size_t payload_length);
 
 } // namespace libcomm

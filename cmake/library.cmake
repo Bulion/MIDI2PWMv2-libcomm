@@ -1,8 +1,9 @@
-set(LIBCOMM_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schemas/comm.fbs")
+set(LIBCOMM_SCHEMA "${CMAKE_CURRENT_SOURCE_DIR}/schemas/midi_messages.fbs")
 set(LIBCOMM_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(LIBCOMM_GENERATED_HEADER "midi_messages_generated.h")
 
 add_custom_command(
-    OUTPUT "${LIBCOMM_GENERATED_DIR}/comm_generated.h"
+    OUTPUT "${LIBCOMM_GENERATED_DIR}/${LIBCOMM_GENERATED_HEADER}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${LIBCOMM_GENERATED_DIR}"
     COMMAND "${LIBCOMM_FLATC_COMMAND}" --cpp --scoped-enums -o "${LIBCOMM_GENERATED_DIR}" "${LIBCOMM_SCHEMA}"
     DEPENDS "${LIBCOMM_SCHEMA}"
@@ -11,7 +12,7 @@ add_custom_command(
 )
 
 add_custom_target(libcomm_generate ALL
-    DEPENDS "${LIBCOMM_GENERATED_DIR}/comm_generated.h"
+    DEPENDS "${LIBCOMM_GENERATED_DIR}/${LIBCOMM_GENERATED_HEADER}"
 )
 
 add_library(libcomm STATIC

@@ -1,0 +1,68 @@
+namespace midi2pwm.midi;
+
+table Ping {
+  sequence: uint;
+  timestamp: ulong;
+}
+
+enum ChannelMessageType : ubyte {
+  NoteOff = 0,
+  NoteOn = 1,
+  PolyphonicKeyPressure = 2,
+  ControlChange = 3,
+  ProgramChange = 4,
+  ChannelPressure = 5,
+  PitchBend = 6
+}
+
+table ChannelMessage {
+  channel: ubyte;
+  message_type: ChannelMessageType;
+  data1: ushort;
+  data2: ushort;
+}
+
+enum SystemCommonType : ubyte {
+  TimeCodeQuarterFrame = 0,
+  SongPositionPointer = 1,
+  SongSelect = 2,
+  TuneRequest = 3
+}
+
+table SystemCommonMessage {
+  message_type: SystemCommonType;
+  value: ushort;
+}
+
+enum SystemRealTimeType : ubyte {
+  TimingClock = 0,
+  Start = 1,
+  Continue = 2,
+  Stop = 3,
+  ActiveSensing = 4,
+  SystemReset = 5
+}
+
+table SystemRealTimeMessage {
+  message_type: SystemRealTimeType;
+}
+
+table SystemExclusiveMessage {
+  manufacturer_id: [ubyte];
+  payload: [ubyte];
+}
+
+union Packet {
+  Ping,
+  ChannelMessage,
+  SystemCommonMessage,
+  SystemRealTimeMessage,
+  SystemExclusiveMessage
+}
+
+table Envelope {
+  packet: Packet;
+}
+
+root_type Envelope;
+file_identifier "M2PW";
