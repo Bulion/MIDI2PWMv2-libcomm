@@ -147,8 +147,8 @@ int main()
     std::signal(SIGINT, HandleSignal);
 
     libcomm::examples::DBusServerTransport server(kAddress);
-    libcomm::Endpoint endpoint(libcomm::Endpoint::WriteCallback::create<&NullWrite>());
-    libcomm::PwmEndpoint pwm_endpoint(libcomm::PwmEndpoint::WriteCallback::create<&NullWrite>());
+    libcomm::Endpoint endpoint(libcomm::Endpoint::WriteCallback::create<&NullWrite>(), true);
+    libcomm::PwmEndpoint pwm_endpoint(libcomm::PwmEndpoint::WriteCallback::create<&NullWrite>(), true);
 
     endpoint.OnPing(libcomm::Endpoint::PingHandler::create<&PrintPing>());
     endpoint.OnChannelMessage(libcomm::Endpoint::ChannelMessageHandler::create<&PrintChannel>());

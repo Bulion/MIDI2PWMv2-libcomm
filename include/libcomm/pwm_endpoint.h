@@ -6,26 +6,27 @@
 #include <etl/delegate.h>
 
 #include "flatbuffers/flatbuffers.h"
+#include "libcomm/frame_transport.h"
 #include "pwm_messages_generated.h"
 
 namespace libcomm {
 
 class PwmEndpoint {
 public:
-    using WriteCallback = etl::delegate<bool(const std::uint8_t*, std::size_t)>;
+    using WriteCallback = FrameTransport::WriteCallback;
     using ChannelTelemetryHandler = etl::delegate<void(const midi2pwm::pwm::ChannelTelemetry&)>;
     using ChannelConfigHandler = etl::delegate<void(const midi2pwm::pwm::ChannelConfig&)>;
     using FaultLogHandler = etl::delegate<void(const midi2pwm::pwm::FaultLog&)>;
     using FaultControlHandler = etl::delegate<void(const midi2pwm::pwm::FaultControlCommand&)>;
 
-    explicit PwmEndpoint(WriteCallback write);
+    explicit PwmEndpoint(WriteCallback write, bool synchronous_ack = false);
 
     PwmEndpoint(const PwmEndpoint&) = delete;
     PwmEndpoint& operator=(const PwmEndpoint&) = delete;
     ~PwmEndpoint() = default;
 
-    bool Send(flatbuffers::DetachedBuffer&& buffer) const;
-    bool HandleIncoming(const std::uint8_t* data, std::size_t size) const;
+    bool Send(flatbuffers::DetachedBuffer&& buffer);
+    bool HandleIncoming(const std::uint8_t* data, std::size_t size);
 
     void OnChannelTelemetry(ChannelTelemetryHandler handler);
     void OnChannelConfig(ChannelConfigHandler handler);
@@ -33,7 +34,9 @@ public:
     void OnFaultControl(FaultControlHandler handler);
 
 private:
-    WriteCallback write_;
+    bool HandleFrame(const std::uint8_t* data, std::size_t size) const;
+
+    FrameTransport transport_;
     ChannelTelemetryHandler telemetry_handler_;
     ChannelConfigHandler config_handler_;
     FaultLogHandler fault_log_handler_;

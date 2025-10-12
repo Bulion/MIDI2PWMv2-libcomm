@@ -44,8 +44,8 @@ int main()
         return 1;
     }
 
-    libcomm::Endpoint endpoint(client.MakeWriteCallback());
-    libcomm::PwmEndpoint pwm_endpoint(client.MakeWriteCallback());
+    libcomm::Endpoint endpoint(client.MakeWriteCallback(), true);
+    libcomm::PwmEndpoint pwm_endpoint(client.MakeWriteCallback(), true);
 
     auto ping = libcomm::BuildPingMessage(1U, TimestampNow());
     if (!endpoint.Send(std::move(ping))) {

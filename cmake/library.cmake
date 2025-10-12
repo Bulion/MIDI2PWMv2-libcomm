@@ -31,6 +31,7 @@ add_custom_target(libcomm_generate ALL
 
 add_library(libcomm STATIC
     src/endpoint.cpp
+    src/frame_transport.cpp
     src/pwm_endpoint.cpp
 )
 add_dependencies(libcomm libcomm_generate)

@@ -6,17 +6,37 @@
 
 namespace libcomm {
 
-PwmEndpoint::PwmEndpoint(WriteCallback write)
-    : write_(write) {}
+PwmEndpoint::PwmEndpoint(WriteCallback write, bool synchronous_ack)
+    : transport_(write, synchronous_ack) {}
 
-bool PwmEndpoint::Send(flatbuffers::DetachedBuffer&& buffer) const {
-    if (!write_) {
-        return false;
-    }
-    return write_(buffer.data(), buffer.size());
+bool PwmEndpoint::Send(flatbuffers::DetachedBuffer&& buffer) {
+    return transport_.Send(buffer.data(), buffer.size());
 }
 
-bool PwmEndpoint::HandleIncoming(const std::uint8_t* data, std::size_t size) const {
+bool PwmEndpoint::HandleIncoming(const std::uint8_t* data, std::size_t size) {
+    return transport_.HandleIncoming(
+        data,
+        size,
+        FrameTransport::DataHandler::create<const PwmEndpoint, &PwmEndpoint::HandleFrame>(*this));
+}
+
+void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler handler) {
+    telemetry_handler_ = handler;
+}
+
+void PwmEndpoint::OnChannelConfig(ChannelConfigHandler handler) {
+    config_handler_ = handler;
+}
+
+void PwmEndpoint::OnFaultLog(FaultLogHandler handler) {
+    fault_log_handler_ = handler;
+}
+
+void PwmEndpoint::OnFaultControl(FaultControlHandler handler) {
+    fault_control_handler_ = handler;
+}
+
+bool PwmEndpoint::HandleFrame(const std::uint8_t* data, std::size_t size) const {
     if (!data || size == 0U) {
         return false;
     }
@@ -43,7 +63,7 @@ bool PwmEndpoint::HandleIncoming(const std::uint8_t* data, std::size_t size) con
                     telemetry_handler_(*telemetry);
                 }
             }
-            break;
+            return true;
         }
         case midi2pwm::pwm::Message::ChannelConfig: {
             if (config_handler_) {
@@ -52,7 +72,7 @@ bool PwmEndpoint::HandleIncoming(const std::uint8_t* data, std::size_t size) con
                     config_handler_(*config);
                 }
             }
-            break;
+            return true;
         }
         case midi2pwm::pwm::Message::FaultLog: {
             if (fault_log_handler_) {
@@ -61,7 +81,7 @@ bool PwmEndpoint::HandleIncoming(const std::uint8_t* data, std::size_t size) con
                     fault_log_handler_(*log);
                 }
             }
-            break;
+            return true;
         }
         case midi2pwm::pwm::Message::FaultControlCommand: {
             if (fault_control_handler_) {
@@ -70,29 +90,11 @@ bool PwmEndpoint::HandleIncoming(const std::uint8_t* data, std::size_t size) con
                     fault_control_handler_(*cmd);
                 }
             }
-            break;
+            return true;
         }
         default:
             return false;
     }
-
-    return true;
-}
-
-void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler handler) {
-    telemetry_handler_ = handler;
-}
-
-void PwmEndpoint::OnChannelConfig(ChannelConfigHandler handler) {
-    config_handler_ = handler;
-}
-
-void PwmEndpoint::OnFaultLog(FaultLogHandler handler) {
-    fault_log_handler_ = handler;
-}
-
-void PwmEndpoint::OnFaultControl(FaultControlHandler handler) {
-    fault_control_handler_ = handler;
 }
 
 namespace {

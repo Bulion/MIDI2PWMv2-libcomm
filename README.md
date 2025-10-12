@@ -11,6 +11,8 @@ STL so it can drop straight into embedded builds.
 - Fetches FlatBuffers v2.0.8 and ETL 20.37.1 via CMake `FetchContent`.
 - Generates C++ sources from the FlatBuffers schemas in `schemas/` and exposes
   lightweight helpers for MIDI (`libcomm::Endpoint`) and PWM (`libcomm::PwmEndpoint`).
+  Both endpoints share a common frame transport that adds CRC32 integrity checks
+  and ACK/NACK handshakes with automatic retry (up to three attempts by default).
 - Provides optional desktop examples that move messages through a simple D-Bus
   transport (`libcomm_dbus_sender` / `libcomm_dbus_receiver`).
 
@@ -58,6 +60,16 @@ automatically. You can disable them manually with:
 ```bash
 cmake -S . -B build -DLIBCOMM_BUILD_EXAMPLES=OFF
 ```
+
+### Frame transport
+
+`libcomm::FrameTransport` bundles FlatBuffers payloads into framed packets with a
+CRC32, sequence numbers, and an ACK/NACK handshake. By default the transport
+expects an explicit ACK frame from the peer; pass `true` for the `synchronous_ack`
+constructor parameter when linking against a request/response medium (such as the
+desktop D-Bus harness) so the transport can rely on the immediate boolean result
+instead. The trampoline automatically retries a failed transmission up to three
+times before surfacing an error to the caller.
 
 ## Running the D-Bus example
 

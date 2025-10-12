@@ -1,11 +1,12 @@
 #pragma once
 
-#include "flatbuffers/flatbuffers.h"
-#include "midi_messages_generated.h"
-
 #include <cstddef>
 #include <cstdint>
 #include <etl/delegate.h>
+
+#include "flatbuffers/flatbuffers.h"
+#include "libcomm/frame_transport.h"
+#include "midi_messages_generated.h"
 
 namespace libcomm
 {
@@ -13,21 +14,21 @@ namespace libcomm
 class Endpoint
 {
 public:
-    using WriteCallback = etl::delegate<bool(const std::uint8_t *, std::size_t)>;
+    using WriteCallback = FrameTransport::WriteCallback;
     using PingHandler = etl::delegate<void(const midi2pwm::midi::Ping &)>;
     using ChannelMessageHandler = etl::delegate<void(const midi2pwm::midi::ChannelMessage &)>;
     using SystemCommonHandler = etl::delegate<void(const midi2pwm::midi::SystemCommonMessage &)>;
     using SystemRealTimeHandler = etl::delegate<void(const midi2pwm::midi::SystemRealTimeMessage &)>;
     using SystemExclusiveHandler = etl::delegate<void(const midi2pwm::midi::SystemExclusiveMessage &)>;
 
-    explicit Endpoint(WriteCallback write);
+    explicit Endpoint(WriteCallback write, bool synchronous_ack = false);
 
     Endpoint(const Endpoint &) = delete;
     Endpoint &operator=(const Endpoint &) = delete;
     ~Endpoint() = default;
 
-    bool Send(flatbuffers::DetachedBuffer &&buffer) const;
-    bool HandleIncoming(const std::uint8_t *data, std::size_t size) const;
+    bool Send(flatbuffers::DetachedBuffer &&buffer);
+    bool HandleIncoming(const std::uint8_t *data, std::size_t size);
 
     void OnPing(PingHandler handler);
     void OnChannelMessage(ChannelMessageHandler handler);
@@ -36,7 +37,9 @@ public:
     void OnSystemExclusive(SystemExclusiveHandler handler);
 
 private:
-    WriteCallback write_;
+    bool HandleFrame(const std::uint8_t *data, std::size_t size) const;
+
+    FrameTransport transport_;
     PingHandler ping_handler_;
     ChannelMessageHandler channel_handler_;
     SystemCommonHandler system_common_handler_;

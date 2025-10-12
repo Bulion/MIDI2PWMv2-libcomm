@@ -5,24 +5,27 @@
 namespace libcomm
 {
 
-Endpoint::Endpoint(WriteCallback write)
-    : write_(write)
+Endpoint::Endpoint(WriteCallback write, bool synchronous_ack)
+    : transport_(write, synchronous_ack)
 {
 }
 
-bool Endpoint::Send(flatbuffers::DetachedBuffer &&buffer) const
+bool Endpoint::Send(flatbuffers::DetachedBuffer &&buffer)
 {
-    if (!write_) {
-        return false;
-    }
-
-    const bool result = write_(buffer.data(), buffer.size());
-    return result;
+    return transport_.Send(buffer.data(), buffer.size());
 }
 
-bool Endpoint::HandleIncoming(const std::uint8_t *data, std::size_t size) const
+bool Endpoint::HandleIncoming(const std::uint8_t *data, std::size_t size)
 {
-    if (!data || size == 0) {
+    return transport_.HandleIncoming(
+        data,
+        size,
+        FrameTransport::DataHandler::create<const Endpoint, &Endpoint::HandleFrame>(*this));
+}
+
+bool Endpoint::HandleFrame(const std::uint8_t *data, std::size_t size) const
+{
+    if (!data || size == 0U) {
         return false;
     }
 
@@ -48,6 +51,7 @@ bool Endpoint::HandleIncoming(const std::uint8_t *data, std::size_t size) const
                 ping_handler_(*ping);
             }
         }
+        break;
     }
     case midi2pwm::midi::Packet::ChannelMessage: {
         if (channel_handler_) {
@@ -83,7 +87,8 @@ bool Endpoint::HandleIncoming(const std::uint8_t *data, std::size_t size) const
                 system_exclusive_handler_(*sysex);
             }
         }
-    } break;
+        break;
+    }
     default:
         return false;
     }
