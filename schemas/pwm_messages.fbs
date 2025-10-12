@@ -1,0 +1,21 @@
+include "pwm_types.fbs";
+include "pwm_channel_config.fbs";
+include "pwm_channel_data.fbs";
+include "pwm_fault_log.fbs";
+include "pwm_fault_control.fbs";
+
+namespace midi2pwm.pwm;
+
+union Message {
+  ChannelConfig,
+  ChannelTelemetry,
+  FaultLog,
+  FaultControlCommand
+}
+
+table Envelope {
+  message: Message;
+}
+
+root_type Envelope;
+file_identifier "PWMX";
