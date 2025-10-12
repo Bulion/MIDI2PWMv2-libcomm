@@ -1,0 +1,17 @@
+namespace midi2pwm.pwm;
+
+// Command envelope for manipulating fault handling behaviour.
+
+enum FaultControlOperation : ubyte {
+  Reset = 0,
+  Fetch = 1,
+  EnableAutoReset = 2,
+  DisableAutoReset = 3
+}
+
+table FaultControlCommand {
+  operation: FaultControlOperation;
+}
+
+root_type FaultControlCommand;
+file_identifier "PWFC";
