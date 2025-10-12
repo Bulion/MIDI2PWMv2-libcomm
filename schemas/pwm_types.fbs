@@ -1,0 +1,24 @@
+namespace midi2pwm.pwm;
+
+// Reusable enumerations for PWM channel control and diagnostics.
+
+enum ChannelConfiguration : ubyte {
+  FullBridge = 0,
+  HalfBridge = 1
+}
+
+enum ChannelStatus : ubyte {
+  Inactive = 0,
+  Active = 1,
+  Fault = 2
+}
+
+enum FaultType : ubyte {
+  None = 0,
+  OverVoltage = 1,
+  UnderVoltage = 2,
+  OverCurrent = 3,
+  Thermal = 4,
+  Communication = 5,
+  Unknown = 255
+}
