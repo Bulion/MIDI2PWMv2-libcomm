@@ -30,7 +30,7 @@ add_custom_target(libcomm_generate ALL
 )
 
 add_library(libcomm STATIC
-    src/endpoint.cpp
+    src/midi_endpoint.cpp
     src/frame_transport.cpp
     src/pwm_endpoint.cpp
 )

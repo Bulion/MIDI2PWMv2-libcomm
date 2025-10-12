@@ -1,6 +1,6 @@
 #pragma once
 
-#include "libcomm/endpoint.h"
+#include "libcomm/midi_endpoint.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -29,7 +29,7 @@ public:
     DBusClientTransport &operator=(DBusClientTransport &&) noexcept = delete;
 
     bool Valid() const;
-    Endpoint::WriteCallback MakeWriteCallback() const;
+    MidiEndpoint::WriteCallback MakeWriteCallback() const;
 
 private:
     bool Transmit(const std::uint8_t *data, std::size_t size) const;

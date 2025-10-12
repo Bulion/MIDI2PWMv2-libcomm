@@ -1,5 +1,5 @@
 #include "dbus_transport.h"
-#include "libcomm/endpoint.h"
+#include "libcomm/midi_endpoint.h"
 #include "libcomm/pwm_endpoint.h"
 
 #include <csignal>
@@ -130,7 +130,7 @@ bool KeepRunning()
 
 struct CombinedHandler
 {
-    libcomm::Endpoint &midi;
+    libcomm::MidiEndpoint &midi;
     libcomm::PwmEndpoint &pwm;
 
     bool operator()(const std::uint8_t *data, std::size_t size) const
@@ -147,14 +147,14 @@ int main()
     std::signal(SIGINT, HandleSignal);
 
     libcomm::examples::DBusServerTransport server(kAddress);
-    libcomm::Endpoint endpoint(libcomm::Endpoint::WriteCallback::create<&NullWrite>(), true);
+    libcomm::MidiEndpoint endpoint(libcomm::MidiEndpoint::WriteCallback::create<&NullWrite>(), true);
     libcomm::PwmEndpoint pwm_endpoint(libcomm::PwmEndpoint::WriteCallback::create<&NullWrite>(), true);
 
-    endpoint.OnPing(libcomm::Endpoint::PingHandler::create<&PrintPing>());
-    endpoint.OnChannelMessage(libcomm::Endpoint::ChannelMessageHandler::create<&PrintChannel>());
-    endpoint.OnSystemCommon(libcomm::Endpoint::SystemCommonHandler::create<&PrintSystemCommon>());
-    endpoint.OnSystemRealTime(libcomm::Endpoint::SystemRealTimeHandler::create<&PrintSystemRealTime>());
-    endpoint.OnSystemExclusive(libcomm::Endpoint::SystemExclusiveHandler::create<&PrintSystemExclusive>());
+    endpoint.OnPing(libcomm::MidiEndpoint::PingHandler::create<&PrintPing>());
+    endpoint.OnChannelMessage(libcomm::MidiEndpoint::ChannelMessageHandler::create<&PrintChannel>());
+    endpoint.OnSystemCommon(libcomm::MidiEndpoint::SystemCommonHandler::create<&PrintSystemCommon>());
+    endpoint.OnSystemRealTime(libcomm::MidiEndpoint::SystemRealTimeHandler::create<&PrintSystemRealTime>());
+    endpoint.OnSystemExclusive(libcomm::MidiEndpoint::SystemExclusiveHandler::create<&PrintSystemExclusive>());
 
     pwm_endpoint.OnChannelTelemetry(libcomm::PwmEndpoint::ChannelTelemetryHandler::create<&PrintChannelTelemetry>());
     pwm_endpoint.OnChannelConfig(libcomm::PwmEndpoint::ChannelConfigHandler::create<&PrintChannelConfig>());

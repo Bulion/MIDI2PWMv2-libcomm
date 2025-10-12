@@ -1,5 +1,5 @@
 #include "dbus_transport.h"
-#include "libcomm/endpoint.h"
+#include "libcomm/midi_endpoint.h"
 #include "libcomm/pwm_endpoint.h"
 
 #include <cstdint>
@@ -44,7 +44,7 @@ int main()
         return 1;
     }
 
-    libcomm::Endpoint endpoint(client.MakeWriteCallback(), true);
+    libcomm::MidiEndpoint endpoint(client.MakeWriteCallback(), true);
     libcomm::PwmEndpoint pwm_endpoint(client.MakeWriteCallback(), true);
 
     auto ping = libcomm::BuildPingMessage(1U, TimestampNow());

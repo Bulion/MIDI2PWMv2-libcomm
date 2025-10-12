@@ -1,29 +1,29 @@
-#include "libcomm/endpoint.h"
+#include "libcomm/midi_endpoint.h"
 
 #include "flatbuffers/verifier.h"
 
 namespace libcomm
 {
 
-Endpoint::Endpoint(WriteCallback write, bool synchronous_ack)
+MidiEndpoint::MidiEndpoint(WriteCallback write, bool synchronous_ack)
     : transport_(write, synchronous_ack)
 {
 }
 
-bool Endpoint::Send(flatbuffers::DetachedBuffer &&buffer)
+bool MidiEndpoint::Send(flatbuffers::DetachedBuffer &&buffer)
 {
     return transport_.Send(buffer.data(), buffer.size());
 }
 
-bool Endpoint::HandleIncoming(const std::uint8_t *data, std::size_t size)
+bool MidiEndpoint::HandleIncoming(const std::uint8_t *data, std::size_t size)
 {
     return transport_.HandleIncoming(
         data,
         size,
-        FrameTransport::DataHandler::create<const Endpoint, &Endpoint::HandleFrame>(*this));
+        FrameTransport::DataHandler::create<const MidiEndpoint, &MidiEndpoint::HandleFrame>(*this));
 }
 
-bool Endpoint::HandleFrame(const std::uint8_t *data, std::size_t size) const
+bool MidiEndpoint::HandleFrame(const std::uint8_t *data, std::size_t size) const
 {
     if (!data || size == 0U) {
         return false;
@@ -96,27 +96,27 @@ bool Endpoint::HandleFrame(const std::uint8_t *data, std::size_t size) const
     return true;
 }
 
-void Endpoint::OnPing(PingHandler handler)
+void MidiEndpoint::OnPing(PingHandler handler)
 {
     ping_handler_ = handler;
 }
 
-void Endpoint::OnChannelMessage(ChannelMessageHandler handler)
+void MidiEndpoint::OnChannelMessage(ChannelMessageHandler handler)
 {
     channel_handler_ = handler;
 }
 
-void Endpoint::OnSystemCommon(SystemCommonHandler handler)
+void MidiEndpoint::OnSystemCommon(SystemCommonHandler handler)
 {
     system_common_handler_ = handler;
 }
 
-void Endpoint::OnSystemRealTime(SystemRealTimeHandler handler)
+void MidiEndpoint::OnSystemRealTime(SystemRealTimeHandler handler)
 {
     system_real_time_handler_ = handler;
 }
 
-void Endpoint::OnSystemExclusive(SystemExclusiveHandler handler)
+void MidiEndpoint::OnSystemExclusive(SystemExclusiveHandler handler)
 {
     system_exclusive_handler_ = handler;
 }

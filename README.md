@@ -10,7 +10,7 @@ STL so it can drop straight into embedded builds.
 ## Highlights
 - Fetches FlatBuffers v2.0.8 and ETL 20.37.1 via CMake `FetchContent`.
 - Generates C++ sources from the FlatBuffers schemas in `schemas/` and exposes
-  lightweight helpers for MIDI (`libcomm::Endpoint`) and PWM (`libcomm::PwmEndpoint`).
+  lightweight helpers for MIDI (`libcomm::MidiEndpoint`) and PWM (`libcomm::PwmEndpoint`).
   Both endpoints share a common frame transport that adds CRC32 integrity checks
   and ACK/NACK handshakes with automatic retry (up to three attempts by default).
 - Provides optional desktop examples that move messages through a simple D-Bus
@@ -29,9 +29,9 @@ surface:
   System Reset.
 - **System Exclusive**: Manufacturer ID plus arbitrary payload blocks.
 
-Endpoint callbacks can be registered for Ping (utility), channel voice, system
+Midi endpoint callbacks can be registered for Ping (utility), channel voice, system
 common, system real-time and SysEx messages. Builders in
-`include/libcomm/endpoint.h` produce ready-to-send FlatBuffers envelopes for
+`include/libcomm/midi_endpoint.h` produce ready-to-send FlatBuffers envelopes for
 each MIDI message type.
 
 ## PWM communication

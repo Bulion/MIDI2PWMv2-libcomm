@@ -69,9 +69,9 @@ bool DBusClientTransport::Valid() const
     return connection_ != nullptr;
 }
 
-Endpoint::WriteCallback DBusClientTransport::MakeWriteCallback() const
+MidiEndpoint::WriteCallback DBusClientTransport::MakeWriteCallback() const
 {
-    return Endpoint::WriteCallback::create<const DBusClientTransport, &DBusClientTransport::Transmit>(*this);
+    return MidiEndpoint::WriteCallback::create<const DBusClientTransport, &DBusClientTransport::Transmit>(*this);
 }
 
 bool DBusClientTransport::Transmit(const std::uint8_t *data, std::size_t size) const

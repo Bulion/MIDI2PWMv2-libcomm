@@ -11,7 +11,7 @@
 namespace libcomm
 {
 
-class Endpoint
+class MidiEndpoint
 {
 public:
     using WriteCallback = FrameTransport::WriteCallback;
@@ -21,11 +21,11 @@ public:
     using SystemRealTimeHandler = etl::delegate<void(const midi2pwm::midi::SystemRealTimeMessage &)>;
     using SystemExclusiveHandler = etl::delegate<void(const midi2pwm::midi::SystemExclusiveMessage &)>;
 
-    explicit Endpoint(WriteCallback write, bool synchronous_ack = false);
+    explicit MidiEndpoint(WriteCallback write, bool synchronous_ack = false);
 
-    Endpoint(const Endpoint &) = delete;
-    Endpoint &operator=(const Endpoint &) = delete;
-    ~Endpoint() = default;
+    MidiEndpoint(const MidiEndpoint &) = delete;
+    MidiEndpoint &operator=(const MidiEndpoint &) = delete;
+    ~MidiEndpoint() = default;
 
     bool Send(flatbuffers::DetachedBuffer &&buffer);
     bool HandleIncoming(const std::uint8_t *data, std::size_t size);
