@@ -18,7 +18,7 @@ foreach(schema ${LIBCOMM_SCHEMAS})
     add_custom_command(
         OUTPUT "${output_header}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${LIBCOMM_GENERATED_DIR}"
-        COMMAND "${LIBCOMM_FLATC_COMMAND}" --cpp --scoped-enums -I "${CMAKE_CURRENT_SOURCE_DIR}/schemas" -o "${LIBCOMM_GENERATED_DIR}" "${schema}"
+        COMMAND "${LIBCOMM_FLATC_COMMAND}" --cpp --scoped-enums --gen-object-api -I "${CMAKE_CURRENT_SOURCE_DIR}/schemas" -o "${LIBCOMM_GENERATED_DIR}" "${schema}"
         DEPENDS ${LIBCOMM_SCHEMAS}
         VERBATIM
         COMMENT "Generating FlatBuffers sources from ${schema}"
@@ -43,13 +43,14 @@ target_include_directories(libcomm
         $<INSTALL_INTERFACE:include>
 )
 
-target_compile_features(libcomm PUBLIC cxx_std_17)
+target_compile_features(libcomm PUBLIC cxx_std_20)
 
 target_link_libraries(libcomm
     PUBLIC
         ${LIBCOMM_FLATBUFFERS_TARGET}
         ${LIBCOMM_ETL_TARGET}
 )
+
 
 if(MSVC)
     target_compile_options(libcomm PRIVATE /W4)
