@@ -1,47 +1,57 @@
 #include "libcomm/pwm_endpoint.h"
 
-#include "flatbuffers/verifier.h"
-
 #include "etl/algorithm.h"
 #include "etl/vector.h"
+#include "flatbuffers/verifier.h"
 
 #include <vector>
 
-namespace libcomm {
+namespace libcomm
+{
 
 PwmEndpoint::PwmEndpoint(WriteCallback writeCallback, bool useSynchronousAcknowledgment)
-    : transport_(writeCallback, useSynchronousAcknowledgment) {}
+    : transport_(writeCallback, useSynchronousAcknowledgment)
+{
+}
 
-bool PwmEndpoint::Send(flatbuffers::DetachedBuffer&& serializedMessageBuffer) {
-    const std::uint8_t* bufferData = serializedMessageBuffer.data();
+bool PwmEndpoint::Send(flatbuffers::DetachedBuffer &&serializedMessageBuffer)
+{
+    const std::uint8_t *bufferData = serializedMessageBuffer.data();
     std::size_t bufferSizeBytes = serializedMessageBuffer.size();
 
     return transport_.Send(bufferData, bufferSizeBytes);
 }
 
-bool PwmEndpoint::HandleIncoming(const std::uint8_t* receivedData, std::size_t receivedSizeBytes) {
-    auto frameHandlerDelegate = FrameTransport::DataHandler::create<const PwmEndpoint, &PwmEndpoint::HandleFrame>(*this);
+bool PwmEndpoint::HandleIncoming(const std::uint8_t *receivedData, std::size_t receivedSizeBytes)
+{
+    auto frameHandlerDelegate =
+        FrameTransport::DataHandler::create<const PwmEndpoint, &PwmEndpoint::HandleFrame>(*this);
 
     return transport_.HandleIncoming(receivedData, receivedSizeBytes, frameHandlerDelegate);
 }
 
-void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler callbackHandler) {
+void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler callbackHandler)
+{
     telemetry_handler_ = callbackHandler;
 }
 
-void PwmEndpoint::OnChannelConfig(ChannelConfigHandler callbackHandler) {
+void PwmEndpoint::OnChannelConfig(ChannelConfigHandler callbackHandler)
+{
     config_handler_ = callbackHandler;
 }
 
-void PwmEndpoint::OnFaultLog(FaultLogHandler callbackHandler) {
+void PwmEndpoint::OnFaultLog(FaultLogHandler callbackHandler)
+{
     fault_log_handler_ = callbackHandler;
 }
 
-void PwmEndpoint::OnFaultControl(FaultControlHandler callbackHandler) {
+void PwmEndpoint::OnFaultControl(FaultControlHandler callbackHandler)
+{
     fault_control_handler_ = callbackHandler;
 }
 
-bool PwmEndpoint::HandleFrame(const std::uint8_t* framePayloadData, std::size_t framePayloadSizeBytes) const {
+bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t framePayloadSizeBytes) const
+{
     if (!framePayloadData || framePayloadSizeBytes == 0U) {
         return false;
     }
@@ -57,67 +67,68 @@ bool PwmEndpoint::HandleFrame(const std::uint8_t* framePayloadData, std::size_t 
         return false;
     }
 
-    const auto* deserializedEnvelope = midi2pwm::pwm::GetEnvelope(framePayloadData);
+    const auto *deserializedEnvelope = midi2pwm::pwm::GetEnvelope(framePayloadData);
     if (!deserializedEnvelope) {
         return false;
     }
 
     switch (deserializedEnvelope->message_type()) {
-        case midi2pwm::pwm::Message::ChannelTelemetry: {
-            if (telemetry_handler_) {
-                const auto* channelTelemetryMessage = deserializedEnvelope->message_as_ChannelTelemetry();
-                if (channelTelemetryMessage) {
-                    telemetry_handler_(*channelTelemetryMessage);
-                }
+    case midi2pwm::pwm::Message::ChannelTelemetry: {
+        if (telemetry_handler_) {
+            const auto *channelTelemetryMessage = deserializedEnvelope->message_as_ChannelTelemetry();
+            if (channelTelemetryMessage) {
+                telemetry_handler_(*channelTelemetryMessage);
             }
-            return true;
         }
-        case midi2pwm::pwm::Message::ChannelConfig: {
-            if (config_handler_) {
-                const auto* channelConfigMessage = deserializedEnvelope->message_as_ChannelConfig();
-                if (channelConfigMessage) {
-                    config_handler_(*channelConfigMessage);
-                }
+        return true;
+    }
+    case midi2pwm::pwm::Message::ChannelConfig: {
+        if (config_handler_) {
+            const auto *channelConfigMessage = deserializedEnvelope->message_as_ChannelConfig();
+            if (channelConfigMessage) {
+                config_handler_(*channelConfigMessage);
             }
-            return true;
         }
-        case midi2pwm::pwm::Message::FaultLog: {
-            if (fault_log_handler_) {
-                const auto* faultLogMessage = deserializedEnvelope->message_as_FaultLog();
-                if (faultLogMessage) {
-                    fault_log_handler_(*faultLogMessage);
-                }
+        return true;
+    }
+    case midi2pwm::pwm::Message::FaultLog: {
+        if (fault_log_handler_) {
+            const auto *faultLogMessage = deserializedEnvelope->message_as_FaultLog();
+            if (faultLogMessage) {
+                fault_log_handler_(*faultLogMessage);
             }
-            return true;
         }
-        case midi2pwm::pwm::Message::FaultControlCommand: {
-            if (fault_control_handler_) {
-                const auto* faultControlCommand = deserializedEnvelope->message_as_FaultControlCommand();
-                if (faultControlCommand) {
-                    fault_control_handler_(*faultControlCommand);
-                }
+        return true;
+    }
+    case midi2pwm::pwm::Message::FaultControlCommand: {
+        if (fault_control_handler_) {
+            const auto *faultControlCommand = deserializedEnvelope->message_as_FaultControlCommand();
+            if (faultControlCommand) {
+                fault_control_handler_(*faultControlCommand);
             }
-            return true;
         }
-        default:
-            return false;
+        return true;
+    }
+    default:
+        return false;
     }
 }
 
-namespace {
+namespace
+{
 
 flatbuffers::DetachedBuffer buildSerializedPwmMessageEnvelope(
-    flatbuffers::FlatBufferBuilder& flatBuffersBuilder,
+    flatbuffers::FlatBufferBuilder &flatBuffersBuilder,
     midi2pwm::pwm::Message messageType,
-    flatbuffers::Offset<void> serializedPayloadOffset) {
-
+    flatbuffers::Offset<void> serializedPayloadOffset)
+{
     auto serializedEnvelope = midi2pwm::pwm::CreateEnvelope(flatBuffersBuilder, messageType, serializedPayloadOffset);
     flatBuffersBuilder.Finish(serializedEnvelope, midi2pwm::pwm::EnvelopeIdentifier());
 
     return flatBuffersBuilder.Release();
 }
 
-}  // namespace
+} // namespace
 
 flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
     std::uint16_t pwmChannelNumber,
@@ -129,8 +140,8 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
     float midpointPositionValue,
     float minimumPositionValue,
     float maximumPositionValue,
-    bool channelExperiencedFaultCondition) {
-
+    bool channelExperiencedFaultCondition)
+{
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
     auto serializedTelemetryMessage = midi2pwm::pwm::CreateChannelTelemetry(
@@ -146,7 +157,8 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
         maximumPositionValue,
         channelExperiencedFaultCondition);
 
-    return buildSerializedPwmMessageEnvelope(flatBuffersBuilder, midi2pwm::pwm::Message::ChannelTelemetry, serializedTelemetryMessage.Union());
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::ChannelTelemetry, serializedTelemetryMessage.Union());
 }
 
 flatbuffers::DetachedBuffer BuildChannelConfigMessage(
@@ -155,8 +167,8 @@ flatbuffers::DetachedBuffer BuildChannelConfigMessage(
     std::uint16_t assignedMidiNoteNumber,
     float midpointPositionValue,
     float minimumPositionValue,
-    float maximumPositionValue) {
-
+    float maximumPositionValue)
+{
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
     auto serializedConfigMessage = midi2pwm::pwm::CreateChannelConfig(
@@ -168,18 +180,18 @@ flatbuffers::DetachedBuffer BuildChannelConfigMessage(
         minimumPositionValue,
         maximumPositionValue);
 
-    return buildSerializedPwmMessageEnvelope(flatBuffersBuilder, midi2pwm::pwm::Message::ChannelConfig, serializedConfigMessage.Union());
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::ChannelConfig, serializedConfigMessage.Union());
 }
 
 flatbuffers::DetachedBuffer BuildFaultLogMessage(
-    std::uint32_t totalLogSizeEntries,
-    const FaultLogEntryData* faultLogEntries,
-    std::size_t providedEntryCount) {
-
+    std::uint32_t totalLogSizeEntries, const FaultLogEntryData *faultLogEntries, std::size_t providedEntryCount)
+{
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
     constexpr std::size_t MAXIMUM_FAULT_LOG_ENTRIES_PER_MESSAGE = 64U;
-    etl::vector<flatbuffers::Offset<midi2pwm::pwm::FaultLogEntry>, MAXIMUM_FAULT_LOG_ENTRIES_PER_MESSAGE> serializedEntryOffsets;
+    etl::vector<flatbuffers::Offset<midi2pwm::pwm::FaultLogEntry>, MAXIMUM_FAULT_LOG_ENTRIES_PER_MESSAGE>
+        serializedEntryOffsets;
 
     if (faultLogEntries && providedEntryCount > 0U) {
         std::size_t entriesToSerializeCount = etl::min(providedEntryCount, serializedEntryOffsets.max_size());
@@ -193,20 +205,26 @@ flatbuffers::DetachedBuffer BuildFaultLogMessage(
         }
     }
 
-    const flatbuffers::Offset<midi2pwm::pwm::FaultLogEntry>* vectorDataPointer = serializedEntryOffsets.empty() ? nullptr : serializedEntryOffsets.data();
-    auto serializedEntriesVector = flatBuffersBuilder.CreateVector(vectorDataPointer, static_cast<flatbuffers::uoffset_t>(serializedEntryOffsets.size()));
+    const flatbuffers::Offset<midi2pwm::pwm::FaultLogEntry> *vectorDataPointer =
+        serializedEntryOffsets.empty() ? nullptr : serializedEntryOffsets.data();
+    auto serializedEntriesVector = flatBuffersBuilder.CreateVector(
+        vectorDataPointer, static_cast<flatbuffers::uoffset_t>(serializedEntryOffsets.size()));
 
-    auto serializedFaultLogMessage = midi2pwm::pwm::CreateFaultLog(flatBuffersBuilder, totalLogSizeEntries, serializedEntriesVector);
+    auto serializedFaultLogMessage =
+        midi2pwm::pwm::CreateFaultLog(flatBuffersBuilder, totalLogSizeEntries, serializedEntriesVector);
 
-    return buildSerializedPwmMessageEnvelope(flatBuffersBuilder, midi2pwm::pwm::Message::FaultLog, serializedFaultLogMessage.Union());
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::FaultLog, serializedFaultLogMessage.Union());
 }
 
-flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation controlOperation) {
+flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation controlOperation)
+{
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
     auto serializedFaultControlCommand = midi2pwm::pwm::CreateFaultControlCommand(flatBuffersBuilder, controlOperation);
 
-    return buildSerializedPwmMessageEnvelope(flatBuffersBuilder, midi2pwm::pwm::Message::FaultControlCommand, serializedFaultControlCommand.Union());
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::FaultControlCommand, serializedFaultControlCommand.Union());
 }
 
-}  // namespace libcomm
+} // namespace libcomm

@@ -1,7 +1,9 @@
 include(FetchContent)
 
 set(FLATBUFFERS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(FLATBUFFERS_BUILD_FLATC ON CACHE BOOL "" FORCE)
+if(NOT DEFINED FLATBUFFERS_BUILD_FLATC)
+    set(FLATBUFFERS_BUILD_FLATC ON CACHE BOOL "" FORCE)
+endif()
 set(FLATBUFFERS_BUILD_FLATHASH OFF CACHE BOOL "" FORCE)
 set(FLATBUFFERS_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(FLATBUFFERS_BUILD_GRPCTEST OFF CACHE BOOL "" FORCE)
@@ -36,6 +38,9 @@ else()
     endif()
 endif()
 
+option(LIBCOMM_ETL_NO_STL "Force ETL to operate without STL support" OFF)
+set(LIBCOMM_ETL_TARGET_OS "NONE" CACHE STRING "ETL target operating system hint")
+
 FetchContent_Declare(
     etl
     GIT_REPOSITORY https://github.com/ETLCPP/etl.git
@@ -58,9 +63,31 @@ else()
 endif()
 
 if(LIBCOMM_ETL_BASE_TARGET)
-    target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET}
-        INTERFACE
-            ETL_NO_STL
-            ETL_TARGET_OS_CMSIS_OS2
-    )
+    get_target_property(_libcomm_existing_defs ${LIBCOMM_ETL_BASE_TARGET} INTERFACE_COMPILE_DEFINITIONS)
+    if(_libcomm_existing_defs)
+        list(REMOVE_ITEM _libcomm_existing_defs ETL_NO_STL)
+        list(REMOVE_ITEM _libcomm_existing_defs ETL_TARGET_OS_CMSIS_OS2)
+        list(REMOVE_ITEM _libcomm_existing_defs ETL_TARGET_OS_NONE)
+        set_property(TARGET ${LIBCOMM_ETL_BASE_TARGET} PROPERTY INTERFACE_COMPILE_DEFINITIONS ${_libcomm_existing_defs})
+    endif()
+
+    if(LIBCOMM_ETL_NO_STL)
+        target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET} INTERFACE ETL_NO_STL)
+    endif()
+
+    if(LIBCOMM_ETL_TARGET_OS STREQUAL "CMSIS_OS2")
+        target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET} INTERFACE ETL_TARGET_OS_CMSIS_OS2)
+        if(NOT LIBCOMM_ETL_NO_STL)
+            target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET} INTERFACE ETL_NO_STL ETL_FORCE_STD_INITIALIZER_LIST)
+        endif()
+    elseif(LIBCOMM_ETL_TARGET_OS STREQUAL "NONE")
+        target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET} INTERFACE ETL_TARGET_OS_NONE)
+    elseif(LIBCOMM_ETL_TARGET_OS STREQUAL "FREERTOS")
+        target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET} INTERFACE ETL_TARGET_OS_FREERTOS)
+        if(NOT LIBCOMM_ETL_NO_STL)
+            target_compile_definitions(${LIBCOMM_ETL_BASE_TARGET} INTERFACE ETL_NO_STL ETL_FORCE_STD_INITIALIZER_LIST)
+        endif()
+    elseif(NOT LIBCOMM_ETL_TARGET_OS STREQUAL "")
+        message(WARNING "Unsupported LIBCOMM_ETL_TARGET_OS='${LIBCOMM_ETL_TARGET_OS}'. Falling back to default.")
+    endif()
 endif()
