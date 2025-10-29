@@ -12,7 +12,7 @@ MidiEndpoint::MidiEndpoint(WriteCallback writeCallback, bool useSynchronousAckno
 
 bool MidiEndpoint::Send(flatbuffers::DetachedBuffer &&serializedMessageBuffer)
 {
-    const std::uint8_t* bufferData = serializedMessageBuffer.data();
+    const std::uint8_t *bufferData = serializedMessageBuffer.data();
     std::size_t bufferSizeBytes = serializedMessageBuffer.size();
 
     return transport_.Send(bufferData, bufferSizeBytes);
@@ -20,7 +20,8 @@ bool MidiEndpoint::Send(flatbuffers::DetachedBuffer &&serializedMessageBuffer)
 
 bool MidiEndpoint::HandleIncoming(const std::uint8_t *receivedData, std::size_t receivedSizeBytes)
 {
-    auto frameHandlerDelegate = FrameTransport::DataHandler::create<const MidiEndpoint, &MidiEndpoint::HandleFrame>(*this);
+    auto frameHandlerDelegate =
+        FrameTransport::DataHandler::create<const MidiEndpoint, &MidiEndpoint::HandleFrame>(*this);
 
     return transport_.HandleIncoming(receivedData, receivedSizeBytes, frameHandlerDelegate);
 }
@@ -130,7 +131,8 @@ flatbuffers::DetachedBuffer BuildPingMessage(std::uint32_t sequenceNumber, std::
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
     auto serializedPingMessage = midi2pwm::midi::CreatePing(flatBuffersBuilder, sequenceNumber, timestampValue);
-    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(flatBuffersBuilder, midi2pwm::midi::Packet::Ping, serializedPingMessage.Union());
+    auto serializedEnvelope =
+        midi2pwm::midi::CreateEnvelope(flatBuffersBuilder, midi2pwm::midi::Packet::Ping, serializedPingMessage.Union());
 
     flatBuffersBuilder.Finish(serializedEnvelope, midi2pwm::midi::EnvelopeIdentifier());
 
@@ -143,13 +145,15 @@ namespace
 flatbuffers::DetachedBuffer buildSerializedChannelMessageEnvelope(
     std::uint8_t midiChannelNumber,
     midi2pwm::midi::ChannelMessageType messageType,
-    std::uint16_t firstDataByte,
-    std::uint16_t secondDataByte)
+    std::uint8_t firstDataByte,
+    std::uint8_t secondDataByte)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
-    auto serializedChannelMessage = midi2pwm::midi::CreateChannelMessage(flatBuffersBuilder, midiChannelNumber, messageType, firstDataByte, secondDataByte);
-    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(flatBuffersBuilder, midi2pwm::midi::Packet::ChannelMessage, serializedChannelMessage.Union());
+    auto serializedChannelMessage = midi2pwm::midi::CreateChannelMessage(
+        flatBuffersBuilder, midiChannelNumber, messageType, firstDataByte, secondDataByte);
+    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(
+        flatBuffersBuilder, midi2pwm::midi::Packet::ChannelMessage, serializedChannelMessage.Union());
 
     flatBuffersBuilder.Finish(serializedEnvelope, midi2pwm::midi::EnvelopeIdentifier());
 
@@ -158,56 +162,69 @@ flatbuffers::DetachedBuffer buildSerializedChannelMessageEnvelope(
 
 } // namespace
 
-flatbuffers::DetachedBuffer BuildNoteOffMessage(std::uint8_t midiChannelNumber, std::uint8_t noteNumber, std::uint8_t velocityValue)
+flatbuffers::DetachedBuffer
+BuildNoteOffMessage(std::uint8_t midiChannelNumber, std::uint8_t noteNumber, std::uint8_t velocityValue)
 {
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::NoteOff, noteNumber, velocityValue);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::NoteOff, noteNumber, velocityValue);
 }
 
-flatbuffers::DetachedBuffer BuildNoteOnMessage(std::uint8_t midiChannelNumber, std::uint8_t noteNumber, std::uint8_t velocityValue)
+flatbuffers::DetachedBuffer
+BuildNoteOnMessage(std::uint8_t midiChannelNumber, std::uint8_t noteNumber, std::uint8_t velocityValue)
 {
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::NoteOn, noteNumber, velocityValue);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::NoteOn, noteNumber, velocityValue);
 }
 
 flatbuffers::DetachedBuffer
 BuildPolyphonicKeyPressureMessage(std::uint8_t midiChannelNumber, std::uint8_t noteNumber, std::uint8_t pressureValue)
 {
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::PolyphonicKeyPressure, noteNumber, pressureValue);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::PolyphonicKeyPressure, noteNumber, pressureValue);
 }
 
-flatbuffers::DetachedBuffer BuildControlChangeMessage(std::uint8_t midiChannelNumber, std::uint8_t controllerNumber, std::uint8_t controllerValue)
+flatbuffers::DetachedBuffer
+BuildControlChangeMessage(std::uint8_t midiChannelNumber, std::uint8_t controllerNumber, std::uint8_t controllerValue)
 {
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::ControlChange, controllerNumber, controllerValue);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::ControlChange, controllerNumber, controllerValue);
 }
 
 flatbuffers::DetachedBuffer BuildProgramChangeMessage(std::uint8_t midiChannelNumber, std::uint8_t programNumber)
 {
     constexpr std::uint16_t UNUSED_SECOND_DATA_BYTE = 0U;
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::ProgramChange, programNumber, UNUSED_SECOND_DATA_BYTE);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::ProgramChange, programNumber, UNUSED_SECOND_DATA_BYTE);
 }
 
 flatbuffers::DetachedBuffer BuildChannelPressureMessage(std::uint8_t midiChannelNumber, std::uint8_t pressureValue)
 {
     constexpr std::uint16_t UNUSED_SECOND_DATA_BYTE = 0U;
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::ChannelPressure, pressureValue, UNUSED_SECOND_DATA_BYTE);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::ChannelPressure, pressureValue, UNUSED_SECOND_DATA_BYTE);
 }
 
 flatbuffers::DetachedBuffer BuildPitchBendMessage(std::uint8_t midiChannelNumber, std::uint16_t pitchBendValue)
 {
-    constexpr std::uint16_t UNUSED_SECOND_DATA_BYTE = 0U;
-    return buildSerializedChannelMessageEnvelope(midiChannelNumber, midi2pwm::midi::ChannelMessageType::PitchBend, pitchBendValue, UNUSED_SECOND_DATA_BYTE);
+    constexpr std::uint8_t MIDI_DATA_BYTE_MASK = 0x7F;
+    std::uint8_t leastSignificantByte = static_cast<std::uint8_t>(pitchBendValue & MIDI_DATA_BYTE_MASK);
+    std::uint8_t mostSignificantByte = static_cast<std::uint8_t>((pitchBendValue >> 7) & MIDI_DATA_BYTE_MASK);
+    return buildSerializedChannelMessageEnvelope(
+        midiChannelNumber, midi2pwm::midi::ChannelMessageType::PitchBend, leastSignificantByte, mostSignificantByte);
 }
 
 namespace
 {
 
-flatbuffers::DetachedBuffer buildSerializedSystemCommonMessageEnvelope(
-    midi2pwm::midi::SystemCommonType messageType,
-    std::uint16_t messageDataValue)
+flatbuffers::DetachedBuffer
+buildSerializedSystemCommonMessageEnvelope(midi2pwm::midi::SystemCommonType messageType, std::uint16_t messageDataValue)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
-    auto serializedSystemCommonMessage = midi2pwm::midi::CreateSystemCommonMessage(flatBuffersBuilder, messageType, messageDataValue);
-    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(flatBuffersBuilder, midi2pwm::midi::Packet::SystemCommonMessage, serializedSystemCommonMessage.Union());
+    auto serializedSystemCommonMessage =
+        midi2pwm::midi::CreateSystemCommonMessage(flatBuffersBuilder, messageType, messageDataValue);
+    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(
+        flatBuffersBuilder, midi2pwm::midi::Packet::SystemCommonMessage, serializedSystemCommonMessage.Union());
 
     flatBuffersBuilder.Finish(serializedEnvelope, midi2pwm::midi::EnvelopeIdentifier());
 
@@ -218,12 +235,14 @@ flatbuffers::DetachedBuffer buildSerializedSystemCommonMessageEnvelope(
 
 flatbuffers::DetachedBuffer BuildTimeCodeQuarterFrameMessage(std::uint8_t quarterFrameValue)
 {
-    return buildSerializedSystemCommonMessageEnvelope(midi2pwm::midi::SystemCommonType::TimeCodeQuarterFrame, quarterFrameValue);
+    return buildSerializedSystemCommonMessageEnvelope(
+        midi2pwm::midi::SystemCommonType::TimeCodeQuarterFrame, quarterFrameValue);
 }
 
 flatbuffers::DetachedBuffer BuildSongPositionPointerMessage(std::uint16_t songPositionBeats)
 {
-    return buildSerializedSystemCommonMessageEnvelope(midi2pwm::midi::SystemCommonType::SongPositionPointer, songPositionBeats);
+    return buildSerializedSystemCommonMessageEnvelope(
+        midi2pwm::midi::SystemCommonType::SongPositionPointer, songPositionBeats);
 }
 
 flatbuffers::DetachedBuffer BuildSongSelectMessage(std::uint8_t songNumber)
@@ -234,15 +253,18 @@ flatbuffers::DetachedBuffer BuildSongSelectMessage(std::uint8_t songNumber)
 flatbuffers::DetachedBuffer BuildTuneRequestMessage()
 {
     constexpr std::uint16_t TUNE_REQUEST_HAS_NO_DATA_VALUE = 0U;
-    return buildSerializedSystemCommonMessageEnvelope(midi2pwm::midi::SystemCommonType::TuneRequest, TUNE_REQUEST_HAS_NO_DATA_VALUE);
+    return buildSerializedSystemCommonMessageEnvelope(
+        midi2pwm::midi::SystemCommonType::TuneRequest, TUNE_REQUEST_HAS_NO_DATA_VALUE);
 }
 
 flatbuffers::DetachedBuffer BuildSystemRealTimeMessage(midi2pwm::midi::SystemRealTimeType realTimeMessageType)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
-    auto serializedSystemRealTimeMessage = midi2pwm::midi::CreateSystemRealTimeMessage(flatBuffersBuilder, realTimeMessageType);
-    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(flatBuffersBuilder, midi2pwm::midi::Packet::SystemRealTimeMessage, serializedSystemRealTimeMessage.Union());
+    auto serializedSystemRealTimeMessage =
+        midi2pwm::midi::CreateSystemRealTimeMessage(flatBuffersBuilder, realTimeMessageType);
+    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(
+        flatBuffersBuilder, midi2pwm::midi::Packet::SystemRealTimeMessage, serializedSystemRealTimeMessage.Union());
 
     flatBuffersBuilder.Finish(serializedEnvelope, midi2pwm::midi::EnvelopeIdentifier());
 
@@ -259,16 +281,20 @@ flatbuffers::DetachedBuffer BuildSystemExclusiveMessage(
 
     flatbuffers::Offset<flatbuffers::Vector<std::uint8_t>> serializedManufacturerIdOffset = 0;
     if (manufacturerIdBytes && manufacturerIdLengthBytes > 0U) {
-        serializedManufacturerIdOffset = flatBuffersBuilder.CreateVector(manufacturerIdBytes, static_cast<flatbuffers::uoffset_t>(manufacturerIdLengthBytes));
+        serializedManufacturerIdOffset = flatBuffersBuilder.CreateVector(
+            manufacturerIdBytes, static_cast<flatbuffers::uoffset_t>(manufacturerIdLengthBytes));
     }
 
     flatbuffers::Offset<flatbuffers::Vector<std::uint8_t>> serializedPayloadOffset = 0;
     if (sysexPayloadBytes && sysexPayloadLengthBytes > 0U) {
-        serializedPayloadOffset = flatBuffersBuilder.CreateVector(sysexPayloadBytes, static_cast<flatbuffers::uoffset_t>(sysexPayloadLengthBytes));
+        serializedPayloadOffset = flatBuffersBuilder.CreateVector(
+            sysexPayloadBytes, static_cast<flatbuffers::uoffset_t>(sysexPayloadLengthBytes));
     }
 
-    auto serializedSystemExclusiveMessage = midi2pwm::midi::CreateSystemExclusiveMessage(flatBuffersBuilder, serializedManufacturerIdOffset, serializedPayloadOffset);
-    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(flatBuffersBuilder, midi2pwm::midi::Packet::SystemExclusiveMessage, serializedSystemExclusiveMessage.Union());
+    auto serializedSystemExclusiveMessage = midi2pwm::midi::CreateSystemExclusiveMessage(
+        flatBuffersBuilder, serializedManufacturerIdOffset, serializedPayloadOffset);
+    auto serializedEnvelope = midi2pwm::midi::CreateEnvelope(
+        flatBuffersBuilder, midi2pwm::midi::Packet::SystemExclusiveMessage, serializedSystemExclusiveMessage.Union());
 
     flatBuffersBuilder.Finish(serializedEnvelope, midi2pwm::midi::EnvelopeIdentifier());
 

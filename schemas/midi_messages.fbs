@@ -18,8 +18,8 @@ enum ChannelMessageType : ubyte {
 table ChannelMessage {
   channel: ubyte;
   message_type: ChannelMessageType;
-  data1: ushort;
-  data2: ushort;
+  data1: ubyte;
+  data2: ubyte;
 }
 
 enum SystemCommonType : ubyte {
