@@ -4,3 +4,5 @@ build*/
 # Claude Code files
 CLAUDE.md
 .claude/
+
+.cache/
