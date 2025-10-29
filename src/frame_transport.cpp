@@ -1,5 +1,7 @@
 #include "libcomm/frame_transport.h"
 
+#include "flatbuffers/base.h"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -8,15 +10,16 @@
 #include <utility>
 #include <vector>
 
-#include "flatbuffers/base.h"
+namespace libcomm
+{
 
-namespace libcomm {
-
-namespace {
+namespace
+{
 
 constexpr std::chrono::milliseconds ACKNOWLEDGMENT_TIMEOUT_DURATION_MILLISECONDS{200};
 
-constexpr std::array<std::uint32_t, 256> generateCrc32LookupTable() {
+constexpr std::array<std::uint32_t, 256> generateCrc32LookupTable()
+{
     std::array<std::uint32_t, 256> lookupTable{};
 
     constexpr std::uint32_t CRC32_POLYNOMIAL_REVERSED = 0xEDB88320U;
@@ -44,13 +47,16 @@ constexpr std::array<std::uint32_t, 256> generateCrc32LookupTable() {
 
 constexpr std::array<std::uint32_t, 256> CRC32_LOOKUP_TABLE = generateCrc32LookupTable();
 
-
-}  // namespace
+} // namespace
 
 FrameTransport::FrameTransport(WriteCallback write, bool synchronous_ack)
-    : write_(write), synchronous_ack_(synchronous_ack) {}
+    : write_(write)
+    , synchronous_ack_(synchronous_ack)
+{
+}
 
-std::uint32_t FrameTransport::ComputeCrc32(const std::uint8_t* data, std::size_t length) {
+std::uint32_t FrameTransport::ComputeCrc32(const std::uint8_t *data, std::size_t length)
+{
     constexpr std::uint32_t CRC32_INITIAL_VALUE = 0xFFFFFFFFU;
     constexpr std::uint32_t CRC32_FINAL_XOR_VALUE = 0xFFFFFFFFU;
     constexpr std::uint8_t BYTE_MASK = 0xFFU;
@@ -65,10 +71,9 @@ std::uint32_t FrameTransport::ComputeCrc32(const std::uint8_t* data, std::size_t
     return crc32Accumulator ^ CRC32_FINAL_XOR_VALUE;
 }
 
-bool FrameTransport::TransmitFrame(FrameType type,
-                                   std::uint16_t sequenceNumber,
-                                   const std::uint8_t* payloadData,
-                                   std::size_t payloadSizeBytes) const {
+bool FrameTransport::TransmitFrame(
+    FrameType type, std::uint16_t sequenceNumber, const std::uint8_t *payloadData, std::size_t payloadSizeBytes) const
+{
     if (!write_) {
         return false;
     }
@@ -77,51 +82,57 @@ bool FrameTransport::TransmitFrame(FrameType type,
         return false;
     }
 
-    constexpr std::size_t MAXIMUM_TOTAL_BUFFER_SIZE_BYTES = kPrefixSize + kHeaderSize + kMaxFrameSize + kCrcSize;
+    constexpr std::size_t MAXIMUM_TOTAL_BUFFER_SIZE_BYTES = kHeaderSize + kMaxFrameSize + kCrcSize;
     std::array<std::uint8_t, MAXIMUM_TOTAL_BUFFER_SIZE_BYTES> transmitBuffer{};
 
-    std::size_t frameSizeBytesWithoutPrefix = kHeaderSize + payloadSizeBytes + kCrcSize;
-    std::size_t totalTransmitSizeBytes = kPrefixSize + frameSizeBytesWithoutPrefix;
+    std::size_t totalTransmitSizeBytes = kHeaderSize + payloadSizeBytes + kCrcSize;
 
-    std::copy(kFramePrefix.begin(), kFramePrefix.end(), transmitBuffer.begin());
-
-    std::uint8_t* frameHeaderStart = transmitBuffer.data() + kPrefixSize;
-    frameHeaderStart[0] = kProtocolVersion;
-    frameHeaderStart[1] = static_cast<std::uint8_t>(type);
+    transmitBuffer[0] = kProtocolVersion;
+    transmitBuffer[1] = static_cast<std::uint8_t>(type);
 
     std::uint16_t sequenceNumberLittleEndian = flatbuffers::EndianScalar(sequenceNumber);
-    std::memcpy(&frameHeaderStart[2], &sequenceNumberLittleEndian, sizeof(sequenceNumberLittleEndian));
+    std::memcpy(&transmitBuffer[2], &sequenceNumberLittleEndian, sizeof(sequenceNumberLittleEndian));
 
-    std::uint32_t payloadSizeBytesLittleEndian = flatbuffers::EndianScalar(static_cast<std::uint32_t>(payloadSizeBytes));
-    std::memcpy(&frameHeaderStart[4], &payloadSizeBytesLittleEndian, sizeof(payloadSizeBytesLittleEndian));
+    std::uint32_t payloadSizeBytesLittleEndian =
+        flatbuffers::EndianScalar(static_cast<std::uint32_t>(payloadSizeBytes));
+    std::memcpy(&transmitBuffer[4], &payloadSizeBytesLittleEndian, sizeof(payloadSizeBytesLittleEndian));
 
     if (payloadData && payloadSizeBytes > 0U) {
-        std::memcpy(&frameHeaderStart[kHeaderSize], payloadData, payloadSizeBytes);
+        std::memcpy(&transmitBuffer[kHeaderSize], payloadData, payloadSizeBytes);
     }
 
-    std::uint32_t computedCrc32Value = ComputeCrc32(frameHeaderStart, frameSizeBytesWithoutPrefix - kCrcSize);
+    std::uint32_t computedCrc32Value = ComputeCrc32(transmitBuffer.data(), totalTransmitSizeBytes - kCrcSize);
     std::uint32_t crc32ValueLittleEndian = flatbuffers::EndianScalar(computedCrc32Value);
-    std::memcpy(&frameHeaderStart[frameSizeBytesWithoutPrefix - kCrcSize], &crc32ValueLittleEndian, sizeof(crc32ValueLittleEndian));
+    std::memcpy(
+        &transmitBuffer[totalTransmitSizeBytes - kCrcSize],
+        &crc32ValueLittleEndian,
+        sizeof(crc32ValueLittleEndian));
 
     return write_(transmitBuffer.data(), totalTransmitSizeBytes);
 }
 
-std::uint16_t FrameTransport::NextSequence() {
+std::uint16_t FrameTransport::NextSequence()
+{
     constexpr std::uint16_t SEQUENCE_NUMBER_ZERO_IS_RESERVED = 0U;
 
-    etl::lock_guard<etl::mutex> lockGuard(mutex_);
+    std::uint16_t allocatedSequenceNumber = 0;
 
-    std::uint16_t allocatedSequenceNumber = next_sequence_;
-    ++next_sequence_;
+    {
+        etl::lock_guard<etl::mutex> lockGuard(mutex_);
 
-    if (next_sequence_ == SEQUENCE_NUMBER_ZERO_IS_RESERVED) {
+        allocatedSequenceNumber = next_sequence_;
         ++next_sequence_;
+
+        if (next_sequence_ == SEQUENCE_NUMBER_ZERO_IS_RESERVED) {
+            ++next_sequence_;
+        }
     }
 
     return allocatedSequenceNumber;
 }
 
-bool FrameTransport::ProcessAck(std::uint16_t receivedSequenceNumber, FrameType receivedFrameType) {
+bool FrameTransport::ProcessAck(std::uint16_t receivedSequenceNumber, FrameType receivedFrameType)
+{
 #if LIBCOMM_HAS_CONDITION_VARIABLE
     etl::lock_guard<etl::mutex> lockGuard(mutex_);
 
@@ -142,9 +153,9 @@ bool FrameTransport::ProcessAck(std::uint16_t receivedSequenceNumber, FrameType 
 #endif
 }
 
-bool FrameTransport::Send(const std::uint8_t* payloadData,
-                          std::size_t payloadSizeBytes,
-                          std::size_t maximumRetryAttempts) {
+bool FrameTransport::Send(
+    const std::uint8_t *payloadData, std::size_t payloadSizeBytes, std::size_t maximumRetryAttempts)
+{
     if (!payloadData && payloadSizeBytes > 0U) {
         return false;
     }
@@ -161,7 +172,8 @@ bool FrameTransport::Send(const std::uint8_t* payloadData,
 #endif
         }
 
-        bool transmissionSucceeded = TransmitFrame(FrameType::Data, allocatedSequenceNumber, payloadData, payloadSizeBytes);
+        bool transmissionSucceeded =
+            TransmitFrame(FrameType::Data, allocatedSequenceNumber, payloadData, payloadSizeBytes);
         if (!transmissionSucceeded) {
 #if LIBCOMM_HAS_CONDITION_VARIABLE
             if (!synchronous_ack_) {
@@ -169,6 +181,9 @@ bool FrameTransport::Send(const std::uint8_t* payloadData,
                 awaiting_ack_ = false;
             }
 #endif
+            static uint32_t transmitFailureCount = 0;
+            if ((++transmitFailureCount % 10) == 0) {
+            }
             continue;
         }
 
@@ -180,10 +195,9 @@ bool FrameTransport::Send(const std::uint8_t* payloadData,
         }
 
         std::unique_lock<etl::mutex> uniqueLock(mutex_);
-        bool acknowledgmentReceived = ack_cv_.wait_for(
-            uniqueLock,
-            ACKNOWLEDGMENT_TIMEOUT_DURATION_MILLISECONDS,
-            [&]() { return !awaiting_ack_ && pending_sequence_ == allocatedSequenceNumber && ack_state_ != AckState::None; });
+        bool acknowledgmentReceived = ack_cv_.wait_for(uniqueLock, ACKNOWLEDGMENT_TIMEOUT_DURATION_MILLISECONDS, [&]() {
+            return !awaiting_ack_ && pending_sequence_ == allocatedSequenceNumber && ack_state_ != AckState::None;
+        });
 
         if (!acknowledgmentReceived) {
             awaiting_ack_ = false;
@@ -202,36 +216,30 @@ bool FrameTransport::Send(const std::uint8_t* payloadData,
     return false;
 }
 
-bool FrameTransport::HandleIncoming(const std::uint8_t* receivedData,
-                                    std::size_t receivedSizeBytes,
-                                    const DataHandler& dataHandler) {
-    constexpr std::size_t MINIMUM_VALID_FRAME_SIZE_BYTES = kPrefixSize + kHeaderSize + kCrcSize;
+bool FrameTransport::HandleIncoming(
+    const std::uint8_t *receivedData, std::size_t receivedSizeBytes, const DataHandler &dataHandler)
+{
+    constexpr std::size_t MINIMUM_VALID_FRAME_SIZE_BYTES = kHeaderSize + kCrcSize;
 
     if (!receivedData || receivedSizeBytes < MINIMUM_VALID_FRAME_SIZE_BYTES) {
         return false;
     }
 
-    bool prefixMatches = std::equal(kFramePrefix.begin(), kFramePrefix.end(), receivedData);
-    if (!prefixMatches) {
-        return false;
-    }
-
-    const std::uint8_t* frameHeaderStart = receivedData + kPrefixSize;
-    std::uint8_t receivedProtocolVersion = frameHeaderStart[0];
-    FrameType receivedFrameType = static_cast<FrameType>(frameHeaderStart[1]);
+    std::uint8_t receivedProtocolVersion = receivedData[0];
+    FrameType receivedFrameType = static_cast<FrameType>(receivedData[1]);
 
     std::uint16_t sequenceNumberLittleEndian = 0;
-    std::memcpy(&sequenceNumberLittleEndian, &frameHeaderStart[2], sizeof(sequenceNumberLittleEndian));
+    std::memcpy(&sequenceNumberLittleEndian, &receivedData[2], sizeof(sequenceNumberLittleEndian));
     std::uint16_t receivedSequenceNumber = flatbuffers::EndianScalar(sequenceNumberLittleEndian);
 
     std::uint32_t payloadSizeBytesLittleEndian = 0;
-    std::memcpy(&payloadSizeBytesLittleEndian, &frameHeaderStart[4], sizeof(payloadSizeBytesLittleEndian));
+    std::memcpy(&payloadSizeBytesLittleEndian, &receivedData[4], sizeof(payloadSizeBytesLittleEndian));
     std::uint32_t receivedPayloadSizeBytes = flatbuffers::EndianScalar(payloadSizeBytesLittleEndian);
 
-    std::size_t expectedFrameSizeBytesWithoutPrefix = kHeaderSize + static_cast<std::size_t>(receivedPayloadSizeBytes) + kCrcSize;
-    std::size_t expectedTotalSizeBytes = kPrefixSize + expectedFrameSizeBytesWithoutPrefix;
+    std::size_t expectedTotalSizeBytes = kHeaderSize + static_cast<std::size_t>(receivedPayloadSizeBytes) + kCrcSize;
 
-    bool versionAndSizeAreValid = (receivedProtocolVersion == kProtocolVersion) && (receivedSizeBytes == expectedTotalSizeBytes);
+    bool versionAndSizeAreValid =
+        (receivedProtocolVersion == kProtocolVersion) && (receivedSizeBytes == expectedTotalSizeBytes);
     if (!versionAndSizeAreValid) {
 #if LIBCOMM_HAS_CONDITION_VARIABLE
         if (!synchronous_ack_) {
@@ -241,9 +249,10 @@ bool FrameTransport::HandleIncoming(const std::uint8_t* receivedData,
         return false;
     }
 
-    std::uint32_t receivedCrc32ValueLittleEndian = *reinterpret_cast<const std::uint32_t*>(&frameHeaderStart[expectedFrameSizeBytesWithoutPrefix - kCrcSize]);
+    std::uint32_t receivedCrc32ValueLittleEndian =
+        *reinterpret_cast<const std::uint32_t *>(&receivedData[expectedTotalSizeBytes - kCrcSize]);
     std::uint32_t receivedCrc32Value = flatbuffers::EndianScalar(receivedCrc32ValueLittleEndian);
-    std::uint32_t computedCrc32Value = ComputeCrc32(frameHeaderStart, expectedFrameSizeBytesWithoutPrefix - kCrcSize);
+    std::uint32_t computedCrc32Value = ComputeCrc32(receivedData, expectedTotalSizeBytes - kCrcSize);
 
     bool crc32Matches = (receivedCrc32Value == computedCrc32Value);
     if (!crc32Matches) {
@@ -270,7 +279,7 @@ bool FrameTransport::HandleIncoming(const std::uint8_t* receivedData,
         return false;
     }
 
-    const std::uint8_t* payloadDataStart = &frameHeaderStart[kHeaderSize];
+    const std::uint8_t *payloadDataStart = &receivedData[kHeaderSize];
     bool handlerSucceeded = dataHandler ? dataHandler(payloadDataStart, receivedPayloadSizeBytes) : false;
 
 #if LIBCOMM_HAS_CONDITION_VARIABLE
@@ -283,4 +292,4 @@ bool FrameTransport::HandleIncoming(const std::uint8_t* receivedData,
     return handlerSucceeded;
 }
 
-}  // namespace libcomm
+} // namespace libcomm

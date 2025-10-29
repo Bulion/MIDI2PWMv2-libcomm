@@ -1,13 +1,23 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
-#include <condition_variable>
-#include <mutex>
+#if defined(ETL_TARGET_OS_CMSIS_OS2) || defined(ETL_TARGET_OS_FREERTOS)
+#    define LIBCOMM_HAS_CONDITION_VARIABLE 0
+#else
+#    define LIBCOMM_HAS_CONDITION_VARIABLE 1
+#endif
+
+#if LIBCOMM_HAS_CONDITION_VARIABLE
+#    include <condition_variable>
+#    include <mutex>
+#endif
 #include <vector>
 
 #include <etl/delegate.h>
+#include <etl/mutex.h>
 
 namespace libcomm {
 
@@ -15,6 +25,10 @@ class FrameTransport {
 public:
     using WriteCallback = etl::delegate<bool(const std::uint8_t*, std::size_t)>;
     using DataHandler = etl::delegate<bool(const std::uint8_t*, std::size_t)>;
+
+    static constexpr std::size_t kHeaderSize = 8U;
+    static constexpr std::size_t kCrcSize = 4U;
+    static constexpr std::size_t kMaxFrameSize = 4096U;
 
     explicit FrameTransport(WriteCallback write, bool synchronous_ack = false);
 
@@ -38,10 +52,6 @@ private:
     };
 
     static constexpr std::uint8_t kProtocolVersion = 1U;
-    static constexpr std::size_t kHeaderSize = 8U;
-    static constexpr std::size_t kCrcSize = 4U;
-    static constexpr std::size_t kMaxFrameSize = 4096U;
-
     static std::uint32_t ComputeCrc32(const std::uint8_t* data, std::size_t length);
 
     bool TransmitFrame(FrameType type,
@@ -53,11 +63,13 @@ private:
 
     WriteCallback write_;
 
-    mutable std::mutex mutex_;
-    std::condition_variable ack_cv_;
+    mutable etl::mutex mutex_;
+#if LIBCOMM_HAS_CONDITION_VARIABLE
+    std::condition_variable_any ack_cv_;
     bool awaiting_ack_{false};
     std::uint16_t pending_sequence_{0};
     AckState ack_state_{AckState::None};
+#endif
 
     std::uint16_t next_sequence_{1};
     bool synchronous_ack_{false};

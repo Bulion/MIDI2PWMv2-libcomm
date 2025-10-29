@@ -292,7 +292,7 @@ TEST_CASE("PwmEndpoint HandleIncoming rejects invalid identifier", "[pwm_endpoin
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     std::vector<std::uint8_t> corrupted = writer.buffer;
-    std::size_t payload_start = libcomm::FrameTransport::kPrefixSize + libcomm::FrameTransport::kHeaderSize;
+    std::size_t payload_start = libcomm::FrameTransport::kHeaderSize;
     corrupted[payload_start + 0] ^= 0xFFU;
 
     REQUIRE_FALSE(endpoint.HandleIncoming(corrupted.data(), corrupted.size()));

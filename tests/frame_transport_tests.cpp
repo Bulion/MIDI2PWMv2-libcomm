@@ -119,16 +119,12 @@ TEST_CASE("FrameTransport::Send frames payload with header metadata", "[frame_tr
     REQUIRE(transport.Send(payload.data(), payload.size()));
     REQUIRE(writer.call_count == 1);
 
-    const auto expected_transmit_size = libcomm::FrameTransport::kPrefixSize +
-                                        libcomm::FrameTransport::kHeaderSize +
+    const auto expected_transmit_size = libcomm::FrameTransport::kHeaderSize +
                                         payload.size() +
                                         libcomm::FrameTransport::kCrcSize;
     REQUIRE(writer.last_buffer.size() == expected_transmit_size);
-    REQUIRE(std::equal(libcomm::FrameTransport::kFramePrefix.begin(),
-                       libcomm::FrameTransport::kFramePrefix.end(),
-                       writer.last_buffer.begin()));
 
-    const std::uint8_t* frame_header = writer.last_buffer.data() + libcomm::FrameTransport::kPrefixSize;
+    const std::uint8_t* frame_header = writer.last_buffer.data();
     REQUIRE(frame_header[0] == 1U); // Protocol version
     REQUIRE(frame_header[1] == 0U); // FrameType::Data
 
@@ -261,8 +257,7 @@ TEST_CASE("FrameTransport asynchronous send succeeds when peer acknowledges", "[
     REQUIRE(handler.call_count == 1);
     REQUIRE(pipe_receiver_to_sender.call_count >= 1);
 
-    const std::uint8_t* ack_header =
-        pipe_receiver_to_sender.last_frame.data() + libcomm::FrameTransport::kPrefixSize;
+    const std::uint8_t* ack_header = pipe_receiver_to_sender.last_frame.data();
     REQUIRE(ack_header[1] == 1U); // FrameType::Ack
 }
 
@@ -296,30 +291,8 @@ TEST_CASE("FrameTransport asynchronous send retries and fails after receiving NA
     REQUIRE(handler.call_count == 3);
     REQUIRE(pipe_receiver_to_sender.call_count == 3);
 
-    const std::uint8_t* nack_header =
-        pipe_receiver_to_sender.last_frame.data() + libcomm::FrameTransport::kPrefixSize;
+    const std::uint8_t* nack_header = pipe_receiver_to_sender.last_frame.data();
     REQUIRE(nack_header[1] == 2U); // FrameType::Nack
-}
-
-TEST_CASE("FrameTransport::HandleIncoming rejects frames with invalid prefix", "[frame_transport]")
-{
-    CaptureWriter writer;
-    auto write_callback =
-        libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(write_callback, true);
-
-    const std::array<std::uint8_t, 2> payload{0x01U, 0x02U};
-    REQUIRE(transport.Send(payload.data(), payload.size()));
-
-    std::vector<std::uint8_t> corrupted = writer.last_buffer;
-    corrupted[0] ^= 0xFFU;
-
-    CaptureHandler handler;
-    auto data_handler =
-        libcomm::FrameTransport::DataHandler::create<CaptureHandler, &CaptureHandler::Handle>(handler);
-
-    REQUIRE_FALSE(transport.HandleIncoming(corrupted.data(), corrupted.size(), data_handler));
-    REQUIRE(handler.call_count == 0);
 }
 
 TEST_CASE("FrameTransport::HandleIncoming rejects frames with mismatched protocol version", "[frame_transport]")
@@ -333,8 +306,7 @@ TEST_CASE("FrameTransport::HandleIncoming rejects frames with mismatched protoco
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     std::vector<std::uint8_t> corrupted = writer.last_buffer;
-    std::size_t header_index = libcomm::FrameTransport::kPrefixSize;
-    corrupted[header_index] = static_cast<std::uint8_t>(corrupted[header_index] + 1U);
+    corrupted[0] = static_cast<std::uint8_t>(corrupted[0] + 1U);
 
     CaptureHandler handler;
     auto data_handler =

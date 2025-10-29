@@ -246,7 +246,7 @@ TEST_CASE("MidiEndpoint HandleIncoming rejects envelopes with invalid identifier
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     std::vector<std::uint8_t> corrupted = writer.buffer;
-    std::size_t payload_start = libcomm::FrameTransport::kPrefixSize + libcomm::FrameTransport::kHeaderSize;
+    std::size_t payload_start = libcomm::FrameTransport::kHeaderSize;
     corrupted[payload_start + 0] ^= 0xFFU;
 
     REQUIRE_FALSE(endpoint.HandleIncoming(corrupted.data(), corrupted.size()));
@@ -329,8 +329,8 @@ TEST_CASE("Midi message builders populate envelopes correctly", "[midi_endpoint]
 
         auto verify_channel = [&](flatbuffers::DetachedBuffer&& buf,
                                   midi2pwm::midi::ChannelMessageType type,
-                                  std::uint16_t data1,
-                                  std::uint16_t data2) {
+                                  std::uint8_t data1,
+                                  std::uint8_t data2) {
             VerifyEnvelopeHasType(buf, Packet::ChannelMessage);
             const auto* envelope = midi2pwm::midi::GetEnvelope(buf.data());
             const auto* message = envelope->packet_as_ChannelMessage();
@@ -367,8 +367,8 @@ TEST_CASE("Midi message builders populate envelopes correctly", "[midi_endpoint]
                        0U);
         verify_channel(libcomm::BuildPitchBendMessage(channel, 0x1FF0U),
                        midi2pwm::midi::ChannelMessageType::PitchBend,
-                       0x1FF0U,
-                       0U);
+                       0x70U,
+                       0x3FU);
     }
 
     SECTION("System common builders")
