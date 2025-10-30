@@ -1,4 +1,5 @@
 #include "libcomm/frame_transport.h"
+#include "libcomm/logging.h"
 
 #include "flatbuffers/base.h"
 
@@ -12,6 +13,8 @@
 
 namespace libcomm
 {
+
+static constexpr const char* TAG = "FrameTransport";
 
 namespace
 {
@@ -75,10 +78,12 @@ bool FrameTransport::TransmitFrame(
     FrameType type, std::uint16_t sequenceNumber, const std::uint8_t *payloadData, std::size_t payloadSizeBytes) const
 {
     if (!write_) {
+        LIBCOMM_LOG_ERROR(TAG, "Write callback not set");
         return false;
     }
 
     if (payloadSizeBytes > kMaxFrameSize) {
+        LIBCOMM_LOG_ERROR(TAG, "Payload size %u exceeds maximum %u", static_cast<unsigned int>(payloadSizeBytes), static_cast<unsigned int>(kMaxFrameSize));
         return false;
     }
 
@@ -108,7 +113,14 @@ bool FrameTransport::TransmitFrame(
         &crc32ValueLittleEndian,
         sizeof(crc32ValueLittleEndian));
 
-    return write_(transmitBuffer.data(), totalTransmitSizeBytes);
+    LIBCOMM_LOG_DEBUG(TAG, "Transmitting frame type=%u seq=%u payload_size=%u", static_cast<unsigned int>(type), sequenceNumber, static_cast<unsigned int>(payloadSizeBytes));
+
+    bool writeSucceeded = write_(transmitBuffer.data(), totalTransmitSizeBytes);
+    if (!writeSucceeded) {
+        LIBCOMM_LOG_ERROR(TAG, "Write callback failed for frame seq=%u", sequenceNumber);
+    }
+
+    return writeSucceeded;
 }
 
 std::uint16_t FrameTransport::NextSequence()
@@ -157,8 +169,11 @@ bool FrameTransport::Send(
     const std::uint8_t *payloadData, std::size_t payloadSizeBytes, std::size_t maximumRetryAttempts)
 {
     if (!payloadData && payloadSizeBytes > 0U) {
+        LIBCOMM_LOG_ERROR(TAG, "Invalid parameters: null payload with non-zero size");
         return false;
     }
+
+    LIBCOMM_LOG_DEBUG(TAG, "Send called with payload_size=%u max_retries=%u", static_cast<unsigned int>(payloadSizeBytes), static_cast<unsigned int>(maximumRetryAttempts));
 
     for (std::size_t attemptNumber = 0; attemptNumber < maximumRetryAttempts; ++attemptNumber) {
         std::uint16_t allocatedSequenceNumber = NextSequence();
@@ -181,9 +196,7 @@ bool FrameTransport::Send(
                 awaiting_ack_ = false;
             }
 #endif
-            static uint32_t transmitFailureCount = 0;
-            if ((++transmitFailureCount % 10) == 0) {
-            }
+            LIBCOMM_LOG_WARN(TAG, "Transmission failed on attempt %u/%u for seq=%u", static_cast<unsigned int>(attemptNumber + 1), static_cast<unsigned int>(maximumRetryAttempts), allocatedSequenceNumber);
             continue;
         }
 
@@ -191,6 +204,7 @@ bool FrameTransport::Send(
         if (synchronous_ack_) {
             etl::lock_guard<etl::mutex> lockGuard(mutex_);
             awaiting_ack_ = false;
+            LIBCOMM_LOG_INFO(TAG, "Frame sent successfully seq=%u (synchronous mode)", allocatedSequenceNumber);
             return true;
         }
 
@@ -201,18 +215,23 @@ bool FrameTransport::Send(
 
         if (!acknowledgmentReceived) {
             awaiting_ack_ = false;
+            LIBCOMM_LOG_WARN(TAG, "ACK timeout for seq=%u on attempt %u/%u", allocatedSequenceNumber, static_cast<unsigned int>(attemptNumber + 1), static_cast<unsigned int>(maximumRetryAttempts));
             continue;
         }
 
         if (ack_state_ == AckState::Ack) {
+            LIBCOMM_LOG_INFO(TAG, "Frame sent successfully seq=%u (received ACK)", allocatedSequenceNumber);
             return true;
         }
+
+        LIBCOMM_LOG_WARN(TAG, "Received NACK for seq=%u on attempt %u/%u", allocatedSequenceNumber, static_cast<unsigned int>(attemptNumber + 1), static_cast<unsigned int>(maximumRetryAttempts));
 #else
         (void)allocatedSequenceNumber;
         return true;
 #endif
     }
 
+    LIBCOMM_LOG_ERROR(TAG, "Send failed after %u retry attempts", static_cast<unsigned int>(maximumRetryAttempts));
     return false;
 }
 
@@ -222,8 +241,11 @@ bool FrameTransport::HandleIncoming(
     constexpr std::size_t MINIMUM_VALID_FRAME_SIZE_BYTES = kHeaderSize + kCrcSize;
 
     if (!receivedData || receivedSizeBytes < MINIMUM_VALID_FRAME_SIZE_BYTES) {
+        LIBCOMM_LOG_ERROR(TAG, "Invalid incoming frame: null data or size %u below minimum %u", static_cast<unsigned int>(receivedSizeBytes), static_cast<unsigned int>(MINIMUM_VALID_FRAME_SIZE_BYTES));
         return false;
     }
+
+    LIBCOMM_LOG_DEBUG(TAG, "Handling incoming frame of size %u", static_cast<unsigned int>(receivedSizeBytes));
 
     std::uint8_t receivedProtocolVersion = receivedData[0];
     FrameType receivedFrameType = static_cast<FrameType>(receivedData[1]);
@@ -241,6 +263,11 @@ bool FrameTransport::HandleIncoming(
     bool versionAndSizeAreValid =
         (receivedProtocolVersion == kProtocolVersion) && (receivedSizeBytes == expectedTotalSizeBytes);
     if (!versionAndSizeAreValid) {
+        if (receivedProtocolVersion != kProtocolVersion) {
+            LIBCOMM_LOG_ERROR(TAG, "Protocol version mismatch: expected %u, got %u", kProtocolVersion, receivedProtocolVersion);
+        } else {
+            LIBCOMM_LOG_ERROR(TAG, "Frame size mismatch: expected %u, got %u", static_cast<unsigned int>(expectedTotalSizeBytes), static_cast<unsigned int>(receivedSizeBytes));
+        }
 #if LIBCOMM_HAS_CONDITION_VARIABLE
         if (!synchronous_ack_) {
             TransmitFrame(FrameType::Nack, receivedSequenceNumber, nullptr, 0U);
@@ -256,6 +283,7 @@ bool FrameTransport::HandleIncoming(
 
     bool crc32Matches = (receivedCrc32Value == computedCrc32Value);
     if (!crc32Matches) {
+        LIBCOMM_LOG_ERROR(TAG, "CRC mismatch for seq=%u: expected %x, got %x", receivedSequenceNumber, computedCrc32Value, receivedCrc32Value);
 #if LIBCOMM_HAS_CONDITION_VARIABLE
         if (!synchronous_ack_) {
             TransmitFrame(FrameType::Nack, receivedSequenceNumber, nullptr, 0U);
@@ -266,11 +294,13 @@ bool FrameTransport::HandleIncoming(
 
     bool isAcknowledgmentFrame = (receivedFrameType == FrameType::Ack) || (receivedFrameType == FrameType::Nack);
     if (isAcknowledgmentFrame) {
+        LIBCOMM_LOG_DEBUG(TAG, "Received %s for seq=%u", (receivedFrameType == FrameType::Ack) ? "ACK" : "NACK", receivedSequenceNumber);
         return ProcessAck(receivedSequenceNumber, receivedFrameType);
     }
 
     bool isDataFrame = (receivedFrameType == FrameType::Data);
     if (!isDataFrame) {
+        LIBCOMM_LOG_ERROR(TAG, "Invalid frame type %u for seq=%u", static_cast<unsigned int>(receivedFrameType), receivedSequenceNumber);
 #if LIBCOMM_HAS_CONDITION_VARIABLE
         if (!synchronous_ack_) {
             TransmitFrame(FrameType::Nack, receivedSequenceNumber, nullptr, 0U);
@@ -279,8 +309,18 @@ bool FrameTransport::HandleIncoming(
         return false;
     }
 
+    LIBCOMM_LOG_DEBUG(TAG, "Received data frame seq=%u payload_size=%u", receivedSequenceNumber, static_cast<unsigned int>(receivedPayloadSizeBytes));
+
     const std::uint8_t *payloadDataStart = &receivedData[kHeaderSize];
     bool handlerSucceeded = dataHandler ? dataHandler(payloadDataStart, receivedPayloadSizeBytes) : false;
+
+    if (!handlerSucceeded) {
+        if (!dataHandler) {
+            LIBCOMM_LOG_WARN(TAG, "No data handler registered for seq=%u", receivedSequenceNumber);
+        } else {
+            LIBCOMM_LOG_WARN(TAG, "Data handler failed for seq=%u", receivedSequenceNumber);
+        }
+    }
 
 #if LIBCOMM_HAS_CONDITION_VARIABLE
     if (!synchronous_ack_) {
