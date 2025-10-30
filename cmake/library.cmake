@@ -33,6 +33,7 @@ add_library(libcomm STATIC
     src/midi_endpoint.cpp
     src/frame_transport.cpp
     src/pwm_endpoint.cpp
+    src/logging.cpp
 )
 add_dependencies(libcomm libcomm_generate)
 
@@ -50,6 +51,21 @@ target_link_libraries(libcomm
         ${LIBCOMM_FLATBUFFERS_TARGET}
         ${LIBCOMM_ETL_TARGET}
 )
+
+if(LIBCOMM_LOG_LEVEL STREQUAL "LOG_LEVEL_OFF")
+    target_compile_definitions(libcomm PUBLIC LIBCOMM_LOG_LEVEL=0)
+elseif(LIBCOMM_LOG_LEVEL STREQUAL "LOG_LEVEL_ERROR")
+    target_compile_definitions(libcomm PUBLIC LIBCOMM_LOG_LEVEL=1)
+elseif(LIBCOMM_LOG_LEVEL STREQUAL "LOG_LEVEL_WARN")
+    target_compile_definitions(libcomm PUBLIC LIBCOMM_LOG_LEVEL=2)
+elseif(LIBCOMM_LOG_LEVEL STREQUAL "LOG_LEVEL_INFO")
+    target_compile_definitions(libcomm PUBLIC LIBCOMM_LOG_LEVEL=3)
+elseif(LIBCOMM_LOG_LEVEL STREQUAL "LOG_LEVEL_DEBUG")
+    target_compile_definitions(libcomm PUBLIC LIBCOMM_LOG_LEVEL=4)
+else()
+    message(WARNING "Invalid LIBCOMM_LOG_LEVEL: ${LIBCOMM_LOG_LEVEL}, defaulting to LOG_LEVEL_INFO")
+    target_compile_definitions(libcomm PUBLIC LIBCOMM_LOG_LEVEL=3)
+endif()
 
 
 if(MSVC)
