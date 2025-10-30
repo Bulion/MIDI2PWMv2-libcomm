@@ -1,4 +1,5 @@
 #include "libcomm/pwm_endpoint.h"
+#include "libcomm/logging.h"
 
 #include "etl/algorithm.h"
 #include "etl/vector.h"
@@ -8,6 +9,8 @@
 
 namespace libcomm
 {
+
+static constexpr const char* TAG = "PwmEndpoint";
 
 PwmEndpoint::PwmEndpoint(WriteCallback writeCallback, bool useSynchronousAcknowledgment)
     : transport_(writeCallback, useSynchronousAcknowledgment)
@@ -24,10 +27,7 @@ bool PwmEndpoint::Send(flatbuffers::DetachedBuffer &&serializedMessageBuffer)
 
 bool PwmEndpoint::HandleIncoming(const std::uint8_t *receivedData, std::size_t receivedSizeBytes)
 {
-    auto frameHandlerDelegate =
-        FrameTransport::DataHandler::create<const PwmEndpoint, &PwmEndpoint::HandleFrame>(*this);
-
-    return transport_.HandleIncoming(receivedData, receivedSizeBytes, frameHandlerDelegate);
+    return HandleFrame(receivedData, receivedSizeBytes);
 }
 
 void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler callbackHandler)
@@ -50,66 +50,119 @@ void PwmEndpoint::OnFaultControl(FaultControlHandler callbackHandler)
     fault_control_handler_ = callbackHandler;
 }
 
+void PwmEndpoint::OnHeartBeat(HeartBeatHandler callbackHandler)
+{
+    heartbeat_handler_ = callbackHandler;
+}
+
+void PwmEndpoint::OnResponse(ResponseHandler callbackHandler)
+{
+    response_handler_ = callbackHandler;
+}
+
 bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t framePayloadSizeBytes) const
 {
     if (!framePayloadData || framePayloadSizeBytes == 0U) {
+        LIBCOMM_LOG_ERROR(TAG, "Invalid frame: null data or zero size");
         return false;
     }
 
     bool hasValidFlatBuffersIdentifier = midi2pwm::pwm::EnvelopeBufferHasIdentifier(framePayloadData);
     if (!hasValidFlatBuffersIdentifier) {
+        LIBCOMM_LOG_ERROR(TAG, "Invalid FlatBuffers identifier in PWM message");
         return false;
     }
 
     flatbuffers::Verifier flatBuffersVerifier(framePayloadData, framePayloadSizeBytes);
     bool envelopeIsValid = midi2pwm::pwm::VerifyEnvelopeBuffer(flatBuffersVerifier);
     if (!envelopeIsValid) {
+        LIBCOMM_LOG_ERROR(TAG, "FlatBuffers verification failed for PWM envelope");
         return false;
     }
 
     const auto *deserializedEnvelope = midi2pwm::pwm::GetEnvelope(framePayloadData);
     if (!deserializedEnvelope) {
+        LIBCOMM_LOG_ERROR(TAG, "Failed to deserialize PWM envelope");
         return false;
     }
 
     switch (deserializedEnvelope->message_type()) {
     case midi2pwm::pwm::Message::ChannelTelemetry: {
-        if (telemetry_handler_) {
-            const auto *channelTelemetryMessage = deserializedEnvelope->message_as_ChannelTelemetry();
-            if (channelTelemetryMessage) {
+        const auto *channelTelemetryMessage = deserializedEnvelope->message_as_ChannelTelemetry();
+        if (channelTelemetryMessage) {
+            LIBCOMM_LOG_INFO(TAG, "Received ChannelTelemetry: channel=%u status=%u", channelTelemetryMessage->channel_number(), static_cast<unsigned int>(channelTelemetryMessage->status()));
+            if (telemetry_handler_) {
+                LIBCOMM_LOG_DEBUG(TAG, "Telemetry: voltage=%d mV current=%d mA fault=%d", static_cast<int>(channelTelemetryMessage->voltage() * 1000), static_cast<int>(channelTelemetryMessage->current() * 1000), channelTelemetryMessage->had_fault());
                 telemetry_handler_(*channelTelemetryMessage);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for ChannelTelemetry");
             }
         }
         return true;
     }
     case midi2pwm::pwm::Message::ChannelConfig: {
-        if (config_handler_) {
-            const auto *channelConfigMessage = deserializedEnvelope->message_as_ChannelConfig();
-            if (channelConfigMessage) {
+        const auto *channelConfigMessage = deserializedEnvelope->message_as_ChannelConfig();
+        if (channelConfigMessage) {
+            LIBCOMM_LOG_INFO(TAG, "Received ChannelConfig: channel=%u config=%u", channelConfigMessage->channel_number(), static_cast<unsigned int>(channelConfigMessage->configuration()));
+            if (config_handler_) {
+                LIBCOMM_LOG_DEBUG(TAG, "Config: note=%u", channelConfigMessage->note());
                 config_handler_(*channelConfigMessage);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for ChannelConfig");
             }
         }
         return true;
     }
     case midi2pwm::pwm::Message::FaultLog: {
-        if (fault_log_handler_) {
-            const auto *faultLogMessage = deserializedEnvelope->message_as_FaultLog();
-            if (faultLogMessage) {
+        const auto *faultLogMessage = deserializedEnvelope->message_as_FaultLog();
+        if (faultLogMessage) {
+            LIBCOMM_LOG_INFO(TAG, "Received FaultLog: log_size=%u", static_cast<unsigned int>(faultLogMessage->log_size()));
+            if (fault_log_handler_) {
                 fault_log_handler_(*faultLogMessage);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for FaultLog");
             }
         }
         return true;
     }
     case midi2pwm::pwm::Message::FaultControlCommand: {
-        if (fault_control_handler_) {
-            const auto *faultControlCommand = deserializedEnvelope->message_as_FaultControlCommand();
-            if (faultControlCommand) {
+        const auto *faultControlCommand = deserializedEnvelope->message_as_FaultControlCommand();
+        if (faultControlCommand) {
+            LIBCOMM_LOG_INFO(TAG, "Received FaultControlCommand: operation=%u", static_cast<unsigned int>(faultControlCommand->operation()));
+            if (fault_control_handler_) {
                 fault_control_handler_(*faultControlCommand);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for FaultControlCommand");
+            }
+        }
+        return true;
+    }
+    case midi2pwm::pwm::Message::HeartBeat: {
+        const auto *heartBeatMessage = deserializedEnvelope->message_as_HeartBeat();
+        if (heartBeatMessage) {
+            LIBCOMM_LOG_DEBUG(TAG, "Received HeartBeat: sequence=%u", static_cast<unsigned int>(heartBeatMessage->sequence()));
+            if (heartbeat_handler_) {
+                heartbeat_handler_(*heartBeatMessage);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for HeartBeat");
+            }
+        }
+        return true;
+    }
+    case midi2pwm::pwm::Message::Response: {
+        const auto *responseMessage = deserializedEnvelope->message_as_Response();
+        if (responseMessage) {
+            LIBCOMM_LOG_INFO(TAG, "Received Response: status=%u", static_cast<unsigned int>(responseMessage->status()));
+            if (response_handler_) {
+                response_handler_(*responseMessage);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for Response");
             }
         }
         return true;
     }
     default:
+        LIBCOMM_LOG_ERROR(TAG, "Unknown PWM message type: %u", static_cast<unsigned int>(deserializedEnvelope->message_type()));
         return false;
     }
 }
@@ -225,6 +278,26 @@ flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControl
 
     return buildSerializedPwmMessageEnvelope(
         flatBuffersBuilder, midi2pwm::pwm::Message::FaultControlCommand, serializedFaultControlCommand.Union());
+}
+
+flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool shouldRequestTelemetry)
+{
+    flatbuffers::FlatBufferBuilder flatBuffersBuilder;
+
+    auto serializedHeartBeatMessage = midi2pwm::pwm::CreateHeartBeat(flatBuffersBuilder, shouldRequestTelemetry);
+
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::HeartBeat, serializedHeartBeatMessage.Union());
+}
+
+flatbuffers::DetachedBuffer BuildResponseMessage(midi2pwm::pwm::ResponseStatus responseStatus, std::uint32_t errorCode)
+{
+    flatbuffers::FlatBufferBuilder flatBuffersBuilder;
+
+    auto serializedResponseMessage = midi2pwm::pwm::CreateResponse(flatBuffersBuilder, responseStatus, errorCode);
+
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::Response, serializedResponseMessage.Union());
 }
 
 } // namespace libcomm
