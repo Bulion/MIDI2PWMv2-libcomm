@@ -8,8 +8,8 @@ namespace libcomm
 
 static constexpr const char* TAG = "MidiEndpoint";
 
-MidiEndpoint::MidiEndpoint(WriteCallback writeCallback, bool useSynchronousAcknowledgment)
-    : transport_(writeCallback, useSynchronousAcknowledgment)
+MidiEndpoint::MidiEndpoint(WriteCallback writeCallback)
+    : transport_(writeCallback)
 {
 }
 
@@ -23,7 +23,8 @@ bool MidiEndpoint::Send(flatbuffers::DetachedBuffer &&serializedMessageBuffer)
 
 bool MidiEndpoint::HandleIncoming(const std::uint8_t *receivedData, std::size_t receivedSizeBytes)
 {
-    return HandleFrame(receivedData, receivedSizeBytes);
+    auto handler = FrameTransport::DataHandler::create<MidiEndpoint, &MidiEndpoint::HandleFrame>(*this);
+    return transport_.HandleIncoming(receivedData, receivedSizeBytes, handler);
 }
 
 bool MidiEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t framePayloadSizeBytes) const
@@ -84,7 +85,7 @@ bool MidiEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t
         if (system_common_handler_) {
             const auto *systemCommonMessage = deserializedEnvelope->packet_as_SystemCommonMessage();
             if (systemCommonMessage) {
-                LIBCOMM_LOG_DEBUG(TAG, "SystemCommon: type=%u data=%u", static_cast<unsigned int>(systemCommonMessage->type()), systemCommonMessage->data());
+                LIBCOMM_LOG_DEBUG(TAG, "SystemCommon: type=%u value=%u", static_cast<unsigned int>(systemCommonMessage->message_type()), systemCommonMessage->value());
                 system_common_handler_(*systemCommonMessage);
             }
         } else {
