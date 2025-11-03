@@ -53,11 +53,19 @@ table CCControlModeParams {
   deadband_range: ubyte = 2;
 }
 
+table PitchBendModeParams {
+  base_level: ubyte = 128;
+  bend_range: ubyte = 64;
+  unipolar: bool = false;
+  velocity_sensitive: bool = true;
+}
+
 union ModeParametersUnion {
   InstantModeParams,
   RampedModeParams,
   PulseModeParams,
   ToggleModeParams,
   ADSRModeParams,
-  CCControlModeParams
+  CCControlModeParams,
+  PitchBendModeParams
 }

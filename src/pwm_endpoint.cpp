@@ -273,6 +273,18 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
             ).Union();
             mode_params_type = midi2pwm::pwm::ModeParametersUnion::CCControlModeParams;
         }
+    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::PitchBendModeParams) {
+        const auto* pitch_bend = mode_params.AsPitchBendModeParams();
+        if (pitch_bend) {
+            mode_params_offset = midi2pwm::pwm::CreatePitchBendModeParams(
+                flatBuffersBuilder,
+                pitch_bend->base_level,
+                pitch_bend->bend_range,
+                pitch_bend->unipolar,
+                pitch_bend->velocity_sensitive
+            ).Union();
+            mode_params_type = midi2pwm::pwm::ModeParametersUnion::PitchBendModeParams;
+        }
     }
 
     auto serializedTelemetryMessage = midi2pwm::pwm::CreateChannelTelemetry(
