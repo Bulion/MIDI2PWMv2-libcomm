@@ -12,8 +12,8 @@ namespace libcomm
 
 static constexpr const char* TAG = "PwmEndpoint";
 
-PwmEndpoint::PwmEndpoint(WriteCallback writeCallback, bool useSynchronousAcknowledgment)
-    : transport_(writeCallback, useSynchronousAcknowledgment)
+PwmEndpoint::PwmEndpoint(WriteCallback writeCallback)
+    : transport_(writeCallback)
 {
 }
 
@@ -27,7 +27,8 @@ bool PwmEndpoint::Send(flatbuffers::DetachedBuffer &&serializedMessageBuffer)
 
 bool PwmEndpoint::HandleIncoming(const std::uint8_t *receivedData, std::size_t receivedSizeBytes)
 {
-    return HandleFrame(receivedData, receivedSizeBytes);
+    auto handler = FrameTransport::DataHandler::create<PwmEndpoint, &PwmEndpoint::HandleFrame>(*this);
+    return transport_.HandleIncoming(receivedData, receivedSizeBytes, handler);
 }
 
 void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler callbackHandler)
