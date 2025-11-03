@@ -1,0 +1,19 @@
+namespace midi2pwm.pwm;
+
+// Response status codes for command acknowledgment
+enum ResponseStatus : byte {
+  ACK = 0,    // Command accepted and processed successfully
+  NACK = 1,   // Command rejected or processing failed
+}
+
+// Response message for command acknowledgment.
+// Sent by STM32 to acknowledge receipt and processing of commands.
+// Can optionally include an error code or message for debugging.
+
+table Response {
+  status: ResponseStatus = ACK;
+  error_code: uint32 = 0;  // Optional error code (0 = no error)
+}
+
+root_type Response;
+file_identifier "PWRS";
