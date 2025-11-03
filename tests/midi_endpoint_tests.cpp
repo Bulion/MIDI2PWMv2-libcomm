@@ -113,8 +113,8 @@ struct MidiEndpointHarness {
     libcomm::MidiEndpoint sender;
 
     MidiEndpointHarness()
-        : receiver(libcomm::MidiEndpoint::WriteCallback::create<NullMidiWriter, &NullMidiWriter::Write>(null_writer), true)
-        , sender(libcomm::MidiEndpoint::WriteCallback::create<MidiLoopback, &MidiLoopback::Write>(loopback), true)
+        : receiver(libcomm::MidiEndpoint::WriteCallback::create<NullMidiWriter, &NullMidiWriter::Write>(null_writer))
+        , sender(libcomm::MidiEndpoint::WriteCallback::create<MidiLoopback, &MidiLoopback::Write>(loopback))
     {
         loopback.receiver = &receiver;
     }
@@ -236,13 +236,13 @@ TEST_CASE("MidiEndpoint HandleIncoming rejects envelopes with invalid identifier
     NullMidiWriter null_writer;
     auto write_callback =
         libcomm::MidiEndpoint::WriteCallback::create<NullMidiWriter, &NullMidiWriter::Write>(null_writer);
-    libcomm::MidiEndpoint endpoint(write_callback, true);
+    libcomm::MidiEndpoint endpoint(write_callback);
 
     auto payload = libcomm::BuildNoteOffMessage(1U, 45U, 100U);
     FrameCaptureWriter writer;
     auto frame_writer =
         libcomm::FrameTransport::WriteCallback::create<FrameCaptureWriter, &FrameCaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(frame_writer, true);
+    libcomm::FrameTransport transport(frame_writer);
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     std::vector<std::uint8_t> corrupted = writer.buffer;
@@ -257,7 +257,7 @@ TEST_CASE("MidiEndpoint HandleIncoming rejects envelopes with invalid packet typ
     NullMidiWriter null_writer;
     auto write_callback =
         libcomm::MidiEndpoint::WriteCallback::create<NullMidiWriter, &NullMidiWriter::Write>(null_writer);
-    libcomm::MidiEndpoint endpoint(write_callback, true);
+    libcomm::MidiEndpoint endpoint(write_callback);
 
     flatbuffers::FlatBufferBuilder builder;
     auto envelope = midi2pwm::midi::CreateEnvelope(builder, midi2pwm::midi::Packet::NONE);
@@ -267,7 +267,7 @@ TEST_CASE("MidiEndpoint HandleIncoming rejects envelopes with invalid packet typ
     FrameCaptureWriter writer;
     auto frame_writer =
         libcomm::FrameTransport::WriteCallback::create<FrameCaptureWriter, &FrameCaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(frame_writer, true);
+    libcomm::FrameTransport transport(frame_writer);
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     REQUIRE_FALSE(endpoint.HandleIncoming(writer.buffer.data(), writer.buffer.size()));
@@ -288,11 +288,11 @@ TEST_CASE("MidiEndpoint Send propagates transport failures", "[midi_endpoint]")
     FailingMidiWriter failing_writer;
     auto write_callback =
         libcomm::MidiEndpoint::WriteCallback::create<FailingMidiWriter, &FailingMidiWriter::Write>(failing_writer);
-    libcomm::MidiEndpoint endpoint(write_callback, true);
+    libcomm::MidiEndpoint endpoint(write_callback);
 
     auto buffer = libcomm::BuildChannelPressureMessage(9U, 77U);
     REQUIRE_FALSE(endpoint.Send(std::move(buffer)));
-    CHECK(failing_writer.call_count == 3);
+    CHECK(failing_writer.call_count == 1);
 }
 
 namespace {
