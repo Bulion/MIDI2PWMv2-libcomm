@@ -1,0 +1,15 @@
+namespace midi2pwm.pwm;
+
+// HeartBeat message for connection health monitoring.
+// Serves dual purpose:
+// 1. Connection heartbeat - write will fail if device disconnected
+// 2. Optional forced telemetry request - if request_telemetry is true,
+//    STM32 should respond with telemetry for all channels
+// Used for disconnection detection and startup initialization.
+
+table HeartBeat {
+  request_telemetry: bool = false;
+}
+
+root_type HeartBeat;
+file_identifier "PWHB";
