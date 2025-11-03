@@ -45,10 +45,19 @@ table ADSRModeParams {
   release_time_ms: uint16 = 200;
 }
 
+table CCControlModeParams {
+  cc_number: ubyte = 1;
+  center_value: ubyte = 64;
+  left_max_pwm: ubyte = 255;
+  right_max_pwm: ubyte = 255;
+  deadband_range: ubyte = 2;
+}
+
 union ModeParametersUnion {
   InstantModeParams,
   RampedModeParams,
   PulseModeParams,
   ToggleModeParams,
-  ADSRModeParams
+  ADSRModeParams,
+  CCControlModeParams
 }

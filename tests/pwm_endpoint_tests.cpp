@@ -465,7 +465,7 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         CHECK(message->error_code() == 42);
     }
 
-    SECTION("Channel telemetry supports Instant, Ramped, Pulse, Toggle, and ADSR output modes")
+    SECTION("Channel telemetry supports all output modes (Instant, Ramped, Pulse, Toggle, ADSR, CCControl)")
     {
         auto buffer_instant = libcomm::BuildChannelTelemetryMessage(
             1U,
@@ -551,6 +551,23 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         const auto* message_adsr = envelope_adsr->message_as_ChannelTelemetry();
         REQUIRE(message_adsr != nullptr);
         CHECK(message_adsr->output_mode() == midi2pwm::pwm::OutputModeType::ADSR);
+
+        auto buffer_cccontrol = libcomm::BuildChannelTelemetryMessage(
+            6U,
+            midi2pwm::pwm::ChannelConfiguration::HalfBridge,
+            midi2pwm::pwm::ChannelStatus::Active,
+            0U,
+            5.0F,
+            0.8F,
+            false,
+            midi2pwm::pwm::OutputModeType::CCControl,
+            midi2pwm::pwm::ModeParametersUnionUnion());
+
+        VerifyEnvelopeType(buffer_cccontrol, Message::ChannelTelemetry);
+        const auto* envelope_cccontrol = midi2pwm::pwm::GetEnvelope(buffer_cccontrol.data());
+        const auto* message_cccontrol = envelope_cccontrol->message_as_ChannelTelemetry();
+        REQUIRE(message_cccontrol != nullptr);
+        CHECK(message_cccontrol->output_mode() == midi2pwm::pwm::OutputModeType::CCControl);
     }
 }
 

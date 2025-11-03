@@ -260,6 +260,19 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
             ).Union();
             mode_params_type = midi2pwm::pwm::ModeParametersUnion::ADSRModeParams;
         }
+    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::CCControlModeParams) {
+        const auto* cc_control = mode_params.AsCCControlModeParams();
+        if (cc_control) {
+            mode_params_offset = midi2pwm::pwm::CreateCCControlModeParams(
+                flatBuffersBuilder,
+                cc_control->cc_number,
+                cc_control->center_value,
+                cc_control->left_max_pwm,
+                cc_control->right_max_pwm,
+                cc_control->deadband_range
+            ).Union();
+            mode_params_type = midi2pwm::pwm::ModeParametersUnion::CCControlModeParams;
+        }
     }
 
     auto serializedTelemetryMessage = midi2pwm::pwm::CreateChannelTelemetry(
