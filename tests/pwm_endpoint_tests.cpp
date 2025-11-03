@@ -465,7 +465,7 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         CHECK(message->error_code() == 42);
     }
 
-    SECTION("Channel telemetry supports Instant, Ramped, and Pulse output modes")
+    SECTION("Channel telemetry supports Instant, Ramped, Pulse, and Toggle output modes")
     {
         auto buffer_instant = libcomm::BuildChannelTelemetryMessage(
             1U,
@@ -517,6 +517,23 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         const auto* message_pulse = envelope_pulse->message_as_ChannelTelemetry();
         REQUIRE(message_pulse != nullptr);
         CHECK(message_pulse->output_mode() == midi2pwm::pwm::OutputModeType::Pulse);
+
+        auto buffer_toggle = libcomm::BuildChannelTelemetryMessage(
+            4U,
+            midi2pwm::pwm::ChannelConfiguration::HalfBridge,
+            midi2pwm::pwm::ChannelStatus::Active,
+            36U,
+            3.3F,
+            0.2F,
+            false,
+            midi2pwm::pwm::OutputModeType::Toggle,
+            midi2pwm::pwm::ModeParametersUnionUnion());
+
+        VerifyEnvelopeType(buffer_toggle, Message::ChannelTelemetry);
+        const auto* envelope_toggle = midi2pwm::pwm::GetEnvelope(buffer_toggle.data());
+        const auto* message_toggle = envelope_toggle->message_as_ChannelTelemetry();
+        REQUIRE(message_toggle != nullptr);
+        CHECK(message_toggle->output_mode() == midi2pwm::pwm::OutputModeType::Toggle);
     }
 }
 

@@ -235,6 +235,17 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
             ).Union();
             mode_params_type = midi2pwm::pwm::ModeParametersUnion::PulseModeParams;
         }
+    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::ToggleModeParams) {
+        const auto* toggle = mode_params.AsToggleModeParams();
+        if (toggle) {
+            mode_params_offset = midi2pwm::pwm::CreateToggleModeParams(
+                flatBuffersBuilder,
+                toggle->on_level,
+                toggle->velocity_sensitive,
+                toggle->debounce_delay_ms
+            ).Union();
+            mode_params_type = midi2pwm::pwm::ModeParametersUnion::ToggleModeParams;
+        }
     }
 
     auto serializedTelemetryMessage = midi2pwm::pwm::CreateChannelTelemetry(

@@ -30,8 +30,15 @@ table PulseModeParams {
   release_time_ms: uint16 = 50;
 }
 
+table ToggleModeParams {
+  on_level: ubyte = 255;
+  velocity_sensitive: bool = false;
+  debounce_delay_ms: uint16 = 50;
+}
+
 union ModeParametersUnion {
   InstantModeParams,
   RampedModeParams,
-  PulseModeParams
+  PulseModeParams,
+  ToggleModeParams
 }
