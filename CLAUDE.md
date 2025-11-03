@@ -35,7 +35,14 @@ Application → Endpoint (MIDI/PWM) → FrameTransport → Physical Layer
 
 1. **FlatBuffers Schemas** (`schemas/`):
    - `midi_messages.fbs`: Full MIDI 1.0 specification
-   - `pwm_*.fbs`: PWM configuration, telemetry, fault handling
+   - `pwm_messages.fbs`: Root PWM message envelope
+   - `pwm_types.fbs`: Common PWM type definitions
+   - `pwm_channel_config.fbs`: Channel configuration messages
+   - `pwm_channel_data.fbs`: Channel telemetry messages
+   - `pwm_fault_log.fbs`: Fault logging messages
+   - `pwm_fault_control.fbs`: Fault control commands
+   - `pwm_heartbeat.fbs`: Heartbeat messages
+   - `pwm_response.fbs`: Response/acknowledgment messages
    - Schema changes propagate to all consumers automatically
 
 2. **FrameTransport** (`include/libcomm/frame_transport.h`):
@@ -424,8 +431,7 @@ public:
 ### Current Approach
 
 CMake options control platform-specific features:
-- `LIBCOMM_ETL_TARGET_OS`: Target operating system (CMSIS_OS2, NONE)
-- `LIBCOMM_USE_STD_SYNC`: Use C++ standard synchronization primitives
+- `LIBCOMM_ETL_TARGET_OS`: Target operating system (CMSIS_OS2, FREERTOS, NONE)
 - `LIBCOMM_ETL_NO_STL`: Disable ETL's STL compatibility layer
 
 ## Testing Strategy
@@ -466,10 +472,13 @@ target_link_libraries(my_target libcomm)
 
 Control build features:
 - `LIBCOMM_BUILD_EXAMPLES`: Build D-Bus examples (default: ON)
+- `LIBCOMM_BUILD_TESTS`: Build unit tests (default: OFF)
+- `LIBCOMM_LOG_LEVEL`: Maximum log level to compile in (default: LOG_LEVEL_INFO)
+  - Options: `LOG_LEVEL_OFF`, `LOG_LEVEL_ERROR`, `LOG_LEVEL_WARN`, `LOG_LEVEL_INFO`, `LOG_LEVEL_DEBUG`
 - `LIBCOMM_ETL_NO_STL`: Disable STL in ETL (default: OFF)
 - `LIBCOMM_ETL_TARGET_OS`: Target OS for ETL (default: NONE)
-- `LIBCOMM_USE_STD_SYNC`: Use std::mutex/condition_variable (default: OFF)
-- `LIBCOMM_FLATC_COMMAND`: Path to flatc compiler (for cross-compilation)
+  - Options: `NONE`, `CMSIS_OS2`, `FREERTOS`
+- `LIBCOMM_FLATC_COMMAND`: Path to flatc compiler (automatically detected, can be overridden for cross-compilation)
 
 ### Dependency Management
 
