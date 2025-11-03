@@ -1,0 +1,28 @@
+namespace midi2pwm.pwm;
+
+enum OutputModeType : byte {
+  Instant = 0,
+  Ramped = 1,
+  Pulse = 2,
+  Toggle = 3,
+  ADSR = 4,
+  CCControl = 5,
+  PitchBend = 6
+}
+
+table InstantModeParams {
+  on_level: ubyte = 255;
+  velocity_sensitive: bool = true;
+}
+
+table RampedModeParams {
+  on_level: ubyte = 255;
+  velocity_sensitive: bool = true;
+  attack_time_ms: uint16 = 100;
+  release_time_ms: uint16 = 100;
+}
+
+union ModeParametersUnion {
+  InstantModeParams,
+  RampedModeParams
+}

@@ -2,6 +2,7 @@ set(LIBCOMM_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(LIBCOMM_SCHEMAS
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/midi_messages.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_types.fbs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_output_modes.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_channel_config.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_channel_data.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_fault_log.fbs"
