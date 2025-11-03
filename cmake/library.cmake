@@ -6,6 +6,8 @@ set(LIBCOMM_SCHEMAS
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_channel_data.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_fault_log.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_fault_control.fbs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_heartbeat.fbs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_response.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_messages.fbs"
 )
 
@@ -34,6 +36,7 @@ add_library(libcomm STATIC
     src/frame_transport.cpp
     src/pwm_endpoint.cpp
     src/logging.cpp
+    src/stream_processor.cpp
 )
 add_dependencies(libcomm libcomm_generate)
 

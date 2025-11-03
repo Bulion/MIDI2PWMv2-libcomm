@@ -3,6 +3,8 @@ include "pwm_channel_config.fbs";
 include "pwm_channel_data.fbs";
 include "pwm_fault_log.fbs";
 include "pwm_fault_control.fbs";
+include "pwm_heartbeat.fbs";
+include "pwm_response.fbs";
 
 namespace midi2pwm.pwm;
 
@@ -10,7 +12,9 @@ union Message {
   ChannelConfig,
   ChannelTelemetry,
   FaultLog,
-  FaultControlCommand
+  FaultControlCommand,
+  HeartBeat,
+  Response
 }
 
 table Envelope {

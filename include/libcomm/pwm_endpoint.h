@@ -18,6 +18,8 @@ public:
     using ChannelConfigHandler = etl::delegate<void(const midi2pwm::pwm::ChannelConfig&)>;
     using FaultLogHandler = etl::delegate<void(const midi2pwm::pwm::FaultLog&)>;
     using FaultControlHandler = etl::delegate<void(const midi2pwm::pwm::FaultControlCommand&)>;
+    using HeartBeatHandler = etl::delegate<void(const midi2pwm::pwm::HeartBeat&)>;
+    using ResponseHandler = etl::delegate<void(const midi2pwm::pwm::Response&)>;
 
     explicit PwmEndpoint(WriteCallback write, bool synchronous_ack = false);
 
@@ -32,6 +34,8 @@ public:
     void OnChannelConfig(ChannelConfigHandler handler);
     void OnFaultLog(FaultLogHandler handler);
     void OnFaultControl(FaultControlHandler handler);
+    void OnHeartBeat(HeartBeatHandler handler);
+    void OnResponse(ResponseHandler handler);
 
 private:
     bool HandleFrame(const std::uint8_t* data, std::size_t size) const;
@@ -41,6 +45,8 @@ private:
     ChannelConfigHandler config_handler_;
     FaultLogHandler fault_log_handler_;
     FaultControlHandler fault_control_handler_;
+    HeartBeatHandler heartbeat_handler_;
+    ResponseHandler response_handler_;
 };
 
 flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(std::uint16_t channel_number,
@@ -71,5 +77,10 @@ flatbuffers::DetachedBuffer BuildFaultLogMessage(std::uint32_t log_size,
                                                  std::size_t entry_count);
 
 flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation operation);
+
+flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool request_telemetry = false);
+
+flatbuffers::DetachedBuffer BuildResponseMessage(midi2pwm::pwm::ResponseStatus status,
+                                                 std::uint32_t error_code = 0);
 
 }  // namespace libcomm
