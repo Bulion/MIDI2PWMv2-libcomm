@@ -1,4 +1,5 @@
 include "pwm_types.fbs";
+include "pwm_output_modes.fbs";
 
 namespace midi2pwm.pwm;
 
@@ -8,9 +9,13 @@ table ChannelConfig {
   channel_number: uint16;
   configuration: ChannelConfiguration = FullBridge;
   note: uint16;
-  midpoint: float;    // Only meaningful when configuration == FullBridge.
-  min_point: float;
-  max_point: float;
+  midpoint: float;    // DEPRECATED: No longer used by firmware, will be removed in future version
+  min_point: float;   // DEPRECATED: No longer used by firmware, will be removed in future version
+  max_point: float;   // DEPRECATED: No longer used by firmware, will be removed in future version
+
+  // Output mode configuration
+  output_mode: OutputModeType = Instant;
+  mode_params: ModeParametersUnion;
 }
 
 root_type ChannelConfig;
