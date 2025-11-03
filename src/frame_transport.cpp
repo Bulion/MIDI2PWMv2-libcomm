@@ -3,13 +3,10 @@
 
 #include "flatbuffers/base.h"
 
+#include <etl/array.h>
+
 #include <algorithm>
-#include <array>
-#include <chrono>
 #include <cstring>
-#include <mutex>
-#include <utility>
-#include <vector>
 
 namespace libcomm
 {
@@ -19,11 +16,9 @@ static constexpr const char* TAG = "FrameTransport";
 namespace
 {
 
-constexpr std::chrono::milliseconds ACKNOWLEDGMENT_TIMEOUT_DURATION_MILLISECONDS{200};
-
-constexpr std::array<std::uint32_t, 256> generateCrc32LookupTable()
+etl::array<std::uint32_t, 256> generateCrc32LookupTable()
 {
-    std::array<std::uint32_t, 256> lookupTable{};
+    etl::array<std::uint32_t, 256> lookupTable{};
 
     constexpr std::uint32_t CRC32_POLYNOMIAL_REVERSED = 0xEDB88320U;
     constexpr std::size_t BITS_PER_BYTE = 8;
@@ -48,13 +43,12 @@ constexpr std::array<std::uint32_t, 256> generateCrc32LookupTable()
     return lookupTable;
 }
 
-constexpr std::array<std::uint32_t, 256> CRC32_LOOKUP_TABLE = generateCrc32LookupTable();
+const etl::array<std::uint32_t, 256> CRC32_LOOKUP_TABLE = generateCrc32LookupTable();
 
 } // namespace
 
-FrameTransport::FrameTransport(WriteCallback write, bool synchronous_ack)
+FrameTransport::FrameTransport(WriteCallback write)
     : write_(write)
-    , synchronous_ack_(synchronous_ack)
 {
 }
 
@@ -88,7 +82,7 @@ bool FrameTransport::TransmitFrame(
     }
 
     constexpr std::size_t MAXIMUM_TOTAL_BUFFER_SIZE_BYTES = kHeaderSize + kMaxFrameSize + kCrcSize;
-    std::array<std::uint8_t, MAXIMUM_TOTAL_BUFFER_SIZE_BYTES> transmitBuffer{};
+    etl::array<std::uint8_t, MAXIMUM_TOTAL_BUFFER_SIZE_BYTES> transmitBuffer{};
 
     std::size_t totalTransmitSizeBytes = kHeaderSize + payloadSizeBytes + kCrcSize;
 
@@ -143,96 +137,28 @@ std::uint16_t FrameTransport::NextSequence()
     return allocatedSequenceNumber;
 }
 
-bool FrameTransport::ProcessAck(std::uint16_t receivedSequenceNumber, FrameType receivedFrameType)
-{
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-    etl::lock_guard<etl::mutex> lockGuard(mutex_);
 
-    bool isWaitingForThisAcknowledgment = awaiting_ack_ && (receivedSequenceNumber == pending_sequence_);
-    if (!isWaitingForThisAcknowledgment) {
-        return false;
-    }
-
-    ack_state_ = (receivedFrameType == FrameType::Ack) ? AckState::Ack : AckState::Nack;
-    awaiting_ack_ = false;
-    ack_cv_.notify_all();
-
-    return true;
-#else
-    (void)receivedSequenceNumber;
-    (void)receivedFrameType;
-    return false;
-#endif
-}
-
-bool FrameTransport::Send(
-    const std::uint8_t *payloadData, std::size_t payloadSizeBytes, std::size_t maximumRetryAttempts)
+bool FrameTransport::Send(const std::uint8_t *payloadData, std::size_t payloadSizeBytes)
 {
     if (!payloadData && payloadSizeBytes > 0U) {
         LIBCOMM_LOG_ERROR(TAG, "Invalid parameters: null payload with non-zero size");
         return false;
     }
 
-    LIBCOMM_LOG_DEBUG(TAG, "Send called with payload_size=%u max_retries=%u", static_cast<unsigned int>(payloadSizeBytes), static_cast<unsigned int>(maximumRetryAttempts));
+    LIBCOMM_LOG_DEBUG(TAG, "Send called with payload_size=%u", static_cast<unsigned int>(payloadSizeBytes));
 
-    for (std::size_t attemptNumber = 0; attemptNumber < maximumRetryAttempts; ++attemptNumber) {
-        std::uint16_t allocatedSequenceNumber = NextSequence();
+    std::uint16_t allocatedSequenceNumber = NextSequence();
 
-        if (!synchronous_ack_) {
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-            etl::lock_guard<etl::mutex> lockGuard(mutex_);
-            awaiting_ack_ = true;
-            pending_sequence_ = allocatedSequenceNumber;
-            ack_state_ = AckState::None;
-#endif
-        }
+    bool transmissionSucceeded =
+        TransmitFrame(FrameType::Data, allocatedSequenceNumber, payloadData, payloadSizeBytes);
 
-        bool transmissionSucceeded =
-            TransmitFrame(FrameType::Data, allocatedSequenceNumber, payloadData, payloadSizeBytes);
-        if (!transmissionSucceeded) {
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-            if (!synchronous_ack_) {
-                etl::lock_guard<etl::mutex> lockGuard(mutex_);
-                awaiting_ack_ = false;
-            }
-#endif
-            LIBCOMM_LOG_WARN(TAG, "Transmission failed on attempt %u/%u for seq=%u", static_cast<unsigned int>(attemptNumber + 1), static_cast<unsigned int>(maximumRetryAttempts), allocatedSequenceNumber);
-            continue;
-        }
-
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-        if (synchronous_ack_) {
-            etl::lock_guard<etl::mutex> lockGuard(mutex_);
-            awaiting_ack_ = false;
-            LIBCOMM_LOG_INFO(TAG, "Frame sent successfully seq=%u (synchronous mode)", allocatedSequenceNumber);
-            return true;
-        }
-
-        std::unique_lock<etl::mutex> uniqueLock(mutex_);
-        bool acknowledgmentReceived = ack_cv_.wait_for(uniqueLock, ACKNOWLEDGMENT_TIMEOUT_DURATION_MILLISECONDS, [&]() {
-            return !awaiting_ack_ && pending_sequence_ == allocatedSequenceNumber && ack_state_ != AckState::None;
-        });
-
-        if (!acknowledgmentReceived) {
-            awaiting_ack_ = false;
-            LIBCOMM_LOG_WARN(TAG, "ACK timeout for seq=%u on attempt %u/%u", allocatedSequenceNumber, static_cast<unsigned int>(attemptNumber + 1), static_cast<unsigned int>(maximumRetryAttempts));
-            continue;
-        }
-
-        if (ack_state_ == AckState::Ack) {
-            LIBCOMM_LOG_INFO(TAG, "Frame sent successfully seq=%u (received ACK)", allocatedSequenceNumber);
-            return true;
-        }
-
-        LIBCOMM_LOG_WARN(TAG, "Received NACK for seq=%u on attempt %u/%u", allocatedSequenceNumber, static_cast<unsigned int>(attemptNumber + 1), static_cast<unsigned int>(maximumRetryAttempts));
-#else
-        (void)allocatedSequenceNumber;
-        return true;
-#endif
+    if (transmissionSucceeded) {
+        LIBCOMM_LOG_INFO(TAG, "Frame sent successfully seq=%u", allocatedSequenceNumber);
+    } else {
+        LIBCOMM_LOG_ERROR(TAG, "Transmission failed for seq=%u", allocatedSequenceNumber);
     }
 
-    LIBCOMM_LOG_ERROR(TAG, "Send failed after %u retry attempts", static_cast<unsigned int>(maximumRetryAttempts));
-    return false;
+    return transmissionSucceeded;
 }
 
 bool FrameTransport::HandleIncoming(
@@ -268,11 +194,6 @@ bool FrameTransport::HandleIncoming(
         } else {
             LIBCOMM_LOG_ERROR(TAG, "Frame size mismatch: expected %u, got %u", static_cast<unsigned int>(expectedTotalSizeBytes), static_cast<unsigned int>(receivedSizeBytes));
         }
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-        if (!synchronous_ack_) {
-            TransmitFrame(FrameType::Nack, receivedSequenceNumber, nullptr, 0U);
-        }
-#endif
         return false;
     }
 
@@ -284,28 +205,11 @@ bool FrameTransport::HandleIncoming(
     bool crc32Matches = (receivedCrc32Value == computedCrc32Value);
     if (!crc32Matches) {
         LIBCOMM_LOG_ERROR(TAG, "CRC mismatch for seq=%u: expected %x, got %x", receivedSequenceNumber, computedCrc32Value, receivedCrc32Value);
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-        if (!synchronous_ack_) {
-            TransmitFrame(FrameType::Nack, receivedSequenceNumber, nullptr, 0U);
-        }
-#endif
         return false;
     }
 
-    bool isAcknowledgmentFrame = (receivedFrameType == FrameType::Ack) || (receivedFrameType == FrameType::Nack);
-    if (isAcknowledgmentFrame) {
-        LIBCOMM_LOG_DEBUG(TAG, "Received %s for seq=%u", (receivedFrameType == FrameType::Ack) ? "ACK" : "NACK", receivedSequenceNumber);
-        return ProcessAck(receivedSequenceNumber, receivedFrameType);
-    }
-
-    bool isDataFrame = (receivedFrameType == FrameType::Data);
-    if (!isDataFrame) {
+    if (receivedFrameType != FrameType::Data) {
         LIBCOMM_LOG_ERROR(TAG, "Invalid frame type %u for seq=%u", static_cast<unsigned int>(receivedFrameType), receivedSequenceNumber);
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-        if (!synchronous_ack_) {
-            TransmitFrame(FrameType::Nack, receivedSequenceNumber, nullptr, 0U);
-        }
-#endif
         return false;
     }
 
@@ -321,13 +225,6 @@ bool FrameTransport::HandleIncoming(
             LIBCOMM_LOG_WARN(TAG, "Data handler failed for seq=%u", receivedSequenceNumber);
         }
     }
-
-#if LIBCOMM_HAS_CONDITION_VARIABLE
-    if (!synchronous_ack_) {
-        FrameType acknowledgmentType = handlerSucceeded ? FrameType::Ack : FrameType::Nack;
-        TransmitFrame(acknowledgmentType, receivedSequenceNumber, nullptr, 0U);
-    }
-#endif
 
     return handlerSucceeded;
 }
