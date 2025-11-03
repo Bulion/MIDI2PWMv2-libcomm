@@ -40,10 +40,8 @@ struct TelemetryProbe {
     std::uint16_t note{0};
     float voltage{0.0F};
     float current{0.0F};
-    float midpoint{0.0F};
-    float min_point{0.0F};
-    float max_point{0.0F};
     bool had_fault{false};
+    midi2pwm::pwm::OutputModeType output_mode{midi2pwm::pwm::OutputModeType::Instant};
     std::size_t call_count{0};
 
     void Handle(const midi2pwm::pwm::ChannelTelemetry& message)
@@ -55,10 +53,8 @@ struct TelemetryProbe {
         note = message.note();
         voltage = message.voltage();
         current = message.current();
-        midpoint = message.midpoint();
-        min_point = message.min_point();
-        max_point = message.max_point();
         had_fault = message.had_fault();
+        output_mode = message.output_mode();
     }
 };
 
@@ -66,9 +62,7 @@ struct ConfigProbe {
     midi2pwm::pwm::ChannelConfiguration configuration{midi2pwm::pwm::ChannelConfiguration::FullBridge};
     std::uint16_t channel{0};
     std::uint16_t note{0};
-    float midpoint{0.0F};
-    float min_point{0.0F};
-    float max_point{0.0F};
+    midi2pwm::pwm::OutputModeType output_mode{midi2pwm::pwm::OutputModeType::Instant};
     std::size_t call_count{0};
 
     void Handle(const midi2pwm::pwm::ChannelConfig& message)
@@ -77,9 +71,7 @@ struct ConfigProbe {
         configuration = message.configuration();
         channel = message.channel_number();
         note = message.note();
-        midpoint = message.midpoint();
-        min_point = message.min_point();
-        max_point = message.max_point();
+        output_mode = message.output_mode();
     }
 };
 
@@ -201,10 +193,9 @@ TEST_CASE("PwmEndpoint routes telemetry envelopes", "[pwm_endpoint]")
         57U,
         3.3F,
         1.2F,
-        0.5F,
-        -0.1F,
-        1.5F,
-        true);
+        true,
+        midi2pwm::pwm::OutputModeType::Instant,
+        midi2pwm::pwm::ModeParametersUnionUnion());
 
     REQUIRE(harness.sender.Send(std::move(buffer)));
 
@@ -215,10 +206,8 @@ TEST_CASE("PwmEndpoint routes telemetry envelopes", "[pwm_endpoint]")
     CHECK(probe.note == 57U);
     CHECK(probe.voltage == Approx(3.3F));
     CHECK(probe.current == Approx(1.2F));
-    CHECK(probe.midpoint == Approx(0.5F));
-    CHECK(probe.min_point == Approx(-0.1F));
-    CHECK(probe.max_point == Approx(1.5F));
     CHECK(probe.had_fault);
+    CHECK(probe.output_mode == midi2pwm::pwm::OutputModeType::Instant);
 }
 
 TEST_CASE("PwmEndpoint routes config envelopes", "[pwm_endpoint]")
@@ -243,9 +232,6 @@ TEST_CASE("PwmEndpoint routes config envelopes", "[pwm_endpoint]")
     CHECK(probe.channel == 4U);
     CHECK(probe.configuration == midi2pwm::pwm::ChannelConfiguration::FullBridge);
     CHECK(probe.note == 72U);
-    CHECK(probe.midpoint == Approx(0.75F));
-    CHECK(probe.min_point == Approx(0.1F));
-    CHECK(probe.max_point == Approx(0.9F));
 }
 
 TEST_CASE("PwmEndpoint routes fault log envelopes", "[pwm_endpoint]")
@@ -368,10 +354,9 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             88U,
             4.1F,
             2.0F,
-            0.6F,
-            0.0F,
-            1.0F,
-            false);
+            false,
+            midi2pwm::pwm::OutputModeType::Instant,
+            midi2pwm::pwm::ModeParametersUnionUnion());
         VerifyEnvelopeType(buffer, Message::ChannelTelemetry);
         const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
         const auto* message = envelope->message_as_ChannelTelemetry();
@@ -382,9 +367,6 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         CHECK(message->note() == 88U);
         CHECK(message->voltage() == Approx(4.1F));
         CHECK(message->current() == Approx(2.0F));
-        CHECK(message->midpoint() == Approx(0.6F));
-        CHECK(message->min_point() == Approx(0.0F));
-        CHECK(message->max_point() == Approx(1.0F));
         CHECK_FALSE(message->had_fault());
     }
 
@@ -399,9 +381,6 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         CHECK(message->channel_number() == 9U);
         CHECK(message->configuration() == midi2pwm::pwm::ChannelConfiguration::HalfBridge);
         CHECK(message->note() == 30U);
-        CHECK(message->midpoint() == Approx(0.4F));
-        CHECK(message->min_point() == Approx(-0.2F));
-        CHECK(message->max_point() == Approx(0.8F));
     }
 
     SECTION("Fault log builder truncates to 64 entries")
@@ -484,6 +463,60 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         REQUIRE(message != nullptr);
         CHECK(message->status() == midi2pwm::pwm::ResponseStatus::NACK);
         CHECK(message->error_code() == 42);
+    }
+
+    SECTION("Channel telemetry supports Instant, Ramped, and Pulse output modes")
+    {
+        auto buffer_instant = libcomm::BuildChannelTelemetryMessage(
+            1U,
+            midi2pwm::pwm::ChannelConfiguration::FullBridge,
+            midi2pwm::pwm::ChannelStatus::Active,
+            60U,
+            5.0F,
+            0.5F,
+            false,
+            midi2pwm::pwm::OutputModeType::Instant,
+            midi2pwm::pwm::ModeParametersUnionUnion());
+
+        VerifyEnvelopeType(buffer_instant, Message::ChannelTelemetry);
+        const auto* envelope_instant = midi2pwm::pwm::GetEnvelope(buffer_instant.data());
+        const auto* message_instant = envelope_instant->message_as_ChannelTelemetry();
+        REQUIRE(message_instant != nullptr);
+        CHECK(message_instant->output_mode() == midi2pwm::pwm::OutputModeType::Instant);
+
+        auto buffer_ramped = libcomm::BuildChannelTelemetryMessage(
+            2U,
+            midi2pwm::pwm::ChannelConfiguration::HalfBridge,
+            midi2pwm::pwm::ChannelStatus::Active,
+            72U,
+            3.3F,
+            1.0F,
+            false,
+            midi2pwm::pwm::OutputModeType::Ramped,
+            midi2pwm::pwm::ModeParametersUnionUnion());
+
+        VerifyEnvelopeType(buffer_ramped, Message::ChannelTelemetry);
+        const auto* envelope_ramped = midi2pwm::pwm::GetEnvelope(buffer_ramped.data());
+        const auto* message_ramped = envelope_ramped->message_as_ChannelTelemetry();
+        REQUIRE(message_ramped != nullptr);
+        CHECK(message_ramped->output_mode() == midi2pwm::pwm::OutputModeType::Ramped);
+
+        auto buffer_pulse = libcomm::BuildChannelTelemetryMessage(
+            3U,
+            midi2pwm::pwm::ChannelConfiguration::FullBridge,
+            midi2pwm::pwm::ChannelStatus::Active,
+            48U,
+            12.0F,
+            2.5F,
+            false,
+            midi2pwm::pwm::OutputModeType::Pulse,
+            midi2pwm::pwm::ModeParametersUnionUnion());
+
+        VerifyEnvelopeType(buffer_pulse, Message::ChannelTelemetry);
+        const auto* envelope_pulse = midi2pwm::pwm::GetEnvelope(buffer_pulse.data());
+        const auto* message_pulse = envelope_pulse->message_as_ChannelTelemetry();
+        REQUIRE(message_pulse != nullptr);
+        CHECK(message_pulse->output_mode() == midi2pwm::pwm::OutputModeType::Pulse);
     }
 }
 

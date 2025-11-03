@@ -22,7 +22,16 @@ table RampedModeParams {
   release_time_ms: uint16 = 100;
 }
 
+table PulseModeParams {
+  on_level: ubyte = 255;
+  velocity_sensitive: bool = true;
+  attack_time_ms: uint16 = 10;
+  hold_time_ms: uint16 = 100;
+  release_time_ms: uint16 = 50;
+}
+
 union ModeParametersUnion {
   InstantModeParams,
-  RampedModeParams
+  RampedModeParams,
+  PulseModeParams
 }
