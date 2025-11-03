@@ -36,9 +36,19 @@ table ToggleModeParams {
   debounce_delay_ms: uint16 = 50;
 }
 
+table ADSRModeParams {
+  attack_level: ubyte = 255;
+  sustain_level: ubyte = 200;
+  velocity_sensitive: bool = true;
+  attack_time_ms: uint16 = 50;
+  decay_time_ms: uint16 = 100;
+  release_time_ms: uint16 = 200;
+}
+
 union ModeParametersUnion {
   InstantModeParams,
   RampedModeParams,
   PulseModeParams,
-  ToggleModeParams
+  ToggleModeParams,
+  ADSRModeParams
 }
