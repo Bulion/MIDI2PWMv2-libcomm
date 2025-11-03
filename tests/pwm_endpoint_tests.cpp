@@ -115,6 +115,30 @@ struct FaultControlProbe {
     }
 };
 
+struct HeartBeatProbe {
+    bool request_telemetry{false};
+    std::size_t call_count{0};
+
+    void Handle(const midi2pwm::pwm::HeartBeat& message)
+    {
+        ++call_count;
+        request_telemetry = message.request_telemetry();
+    }
+};
+
+struct ResponseProbe {
+    midi2pwm::pwm::ResponseStatus status{midi2pwm::pwm::ResponseStatus::ACK};
+    std::uint32_t error_code{0};
+    std::size_t call_count{0};
+
+    void Handle(const midi2pwm::pwm::Response& message)
+    {
+        ++call_count;
+        status = message.status();
+        error_code = message.error_code();
+    }
+};
+
 struct PwmEndpointHarness {
     NullPwmWriter null_writer{};
     PwmLoopback loopback{};
@@ -122,8 +146,8 @@ struct PwmEndpointHarness {
     libcomm::PwmEndpoint sender;
 
     PwmEndpointHarness()
-        : receiver(libcomm::PwmEndpoint::WriteCallback::create<NullPwmWriter, &NullPwmWriter::Write>(null_writer), true)
-        , sender(libcomm::PwmEndpoint::WriteCallback::create<PwmLoopback, &PwmLoopback::Write>(loopback), true)
+        : receiver(libcomm::PwmEndpoint::WriteCallback::create<NullPwmWriter, &NullPwmWriter::Write>(null_writer))
+        , sender(libcomm::PwmEndpoint::WriteCallback::create<PwmLoopback, &PwmLoopback::Write>(loopback))
     {
         loopback.receiver = &receiver;
     }
@@ -280,7 +304,7 @@ TEST_CASE("PwmEndpoint HandleIncoming rejects invalid identifier", "[pwm_endpoin
     NullPwmWriter null_writer;
     auto write_callback =
         libcomm::PwmEndpoint::WriteCallback::create<NullPwmWriter, &NullPwmWriter::Write>(null_writer);
-    libcomm::PwmEndpoint endpoint(write_callback, true);
+    libcomm::PwmEndpoint endpoint(write_callback);
 
     auto payload = libcomm::BuildChannelConfigMessage(
         1U, midi2pwm::pwm::ChannelConfiguration::HalfBridge, 60U, 0.4F, 0.1F, 0.9F);
@@ -288,7 +312,7 @@ TEST_CASE("PwmEndpoint HandleIncoming rejects invalid identifier", "[pwm_endpoin
     FrameCaptureWriter writer;
     auto frame_writer =
         libcomm::FrameTransport::WriteCallback::create<FrameCaptureWriter, &FrameCaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(frame_writer, true);
+    libcomm::FrameTransport transport(frame_writer);
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     std::vector<std::uint8_t> corrupted = writer.buffer;
@@ -303,7 +327,7 @@ TEST_CASE("PwmEndpoint HandleIncoming rejects envelopes with invalid message typ
     NullPwmWriter null_writer;
     auto write_callback =
         libcomm::PwmEndpoint::WriteCallback::create<NullPwmWriter, &NullPwmWriter::Write>(null_writer);
-    libcomm::PwmEndpoint endpoint(write_callback, true);
+    libcomm::PwmEndpoint endpoint(write_callback);
 
     flatbuffers::FlatBufferBuilder builder;
     auto envelope = midi2pwm::pwm::CreateEnvelope(builder, midi2pwm::pwm::Message::NONE);
@@ -313,7 +337,7 @@ TEST_CASE("PwmEndpoint HandleIncoming rejects envelopes with invalid message typ
     FrameCaptureWriter writer;
     auto frame_writer =
         libcomm::FrameTransport::WriteCallback::create<FrameCaptureWriter, &FrameCaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(frame_writer, true);
+    libcomm::FrameTransport transport(frame_writer);
     REQUIRE(transport.Send(payload.data(), payload.size()));
 
     REQUIRE_FALSE(endpoint.HandleIncoming(writer.buffer.data(), writer.buffer.size()));
@@ -324,11 +348,11 @@ TEST_CASE("PwmEndpoint Send propagates transport failures", "[pwm_endpoint]")
     FailingPwmWriter writer;
     auto write_callback =
         libcomm::PwmEndpoint::WriteCallback::create<FailingPwmWriter, &FailingPwmWriter::Write>(writer);
-    libcomm::PwmEndpoint endpoint(write_callback, true);
+    libcomm::PwmEndpoint endpoint(write_callback);
 
     auto buffer = libcomm::BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation::Reset);
     REQUIRE_FALSE(endpoint.Send(std::move(buffer)));
-    CHECK(writer.call_count == 3);
+    CHECK(writer.call_count == 1);
 }
 
 TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
@@ -419,4 +443,75 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         REQUIRE(message != nullptr);
         CHECK(message->operation() == midi2pwm::pwm::FaultControlOperation::EnableAutoReset);
     }
+
+    SECTION("HeartBeat builder with request_telemetry = false")
+    {
+        auto buffer = libcomm::BuildHeartBeatMessage(false);
+        VerifyEnvelopeType(buffer, Message::HeartBeat);
+        const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
+        const auto* message = envelope->message_as_HeartBeat();
+        REQUIRE(message != nullptr);
+        CHECK(message->request_telemetry() == false);
+    }
+
+    SECTION("HeartBeat builder with request_telemetry = true")
+    {
+        auto buffer = libcomm::BuildHeartBeatMessage(true);
+        VerifyEnvelopeType(buffer, Message::HeartBeat);
+        const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
+        const auto* message = envelope->message_as_HeartBeat();
+        REQUIRE(message != nullptr);
+        CHECK(message->request_telemetry() == true);
+    }
+
+    SECTION("Response builder with ACK status")
+    {
+        auto buffer = libcomm::BuildResponseMessage(midi2pwm::pwm::ResponseStatus::ACK, 0);
+        VerifyEnvelopeType(buffer, Message::Response);
+        const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
+        const auto* message = envelope->message_as_Response();
+        REQUIRE(message != nullptr);
+        CHECK(message->status() == midi2pwm::pwm::ResponseStatus::ACK);
+        CHECK(message->error_code() == 0);
+    }
+
+    SECTION("Response builder with NACK status and error code")
+    {
+        auto buffer = libcomm::BuildResponseMessage(midi2pwm::pwm::ResponseStatus::NACK, 42);
+        VerifyEnvelopeType(buffer, Message::Response);
+        const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
+        const auto* message = envelope->message_as_Response();
+        REQUIRE(message != nullptr);
+        CHECK(message->status() == midi2pwm::pwm::ResponseStatus::NACK);
+        CHECK(message->error_code() == 42);
+    }
+}
+
+TEST_CASE("PwmEndpoint routes HeartBeat envelopes", "[pwm_endpoint]")
+{
+    PwmEndpointHarness harness;
+
+    HeartBeatProbe probe;
+    harness.receiver.OnHeartBeat(libcomm::PwmEndpoint::HeartBeatHandler::create<HeartBeatProbe, &HeartBeatProbe::Handle>(probe));
+
+    auto buffer = libcomm::BuildHeartBeatMessage(true);
+    REQUIRE(harness.sender.Send(std::move(buffer)));
+
+    REQUIRE(probe.call_count == 1);
+    CHECK(probe.request_telemetry == true);
+}
+
+TEST_CASE("PwmEndpoint routes Response envelopes", "[pwm_endpoint]")
+{
+    PwmEndpointHarness harness;
+
+    ResponseProbe probe;
+    harness.receiver.OnResponse(libcomm::PwmEndpoint::ResponseHandler::create<ResponseProbe, &ResponseProbe::Handle>(probe));
+
+    auto buffer = libcomm::BuildResponseMessage(midi2pwm::pwm::ResponseStatus::NACK, 123);
+    REQUIRE(harness.sender.Send(std::move(buffer)));
+
+    REQUIRE(probe.call_count == 1);
+    CHECK(probe.status == midi2pwm::pwm::ResponseStatus::NACK);
+    CHECK(probe.error_code == 123);
 }
