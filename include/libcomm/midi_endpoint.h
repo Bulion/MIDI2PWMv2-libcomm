@@ -21,7 +21,7 @@ public:
     using SystemRealTimeHandler = etl::delegate<void(const midi2pwm::midi::SystemRealTimeMessage &)>;
     using SystemExclusiveHandler = etl::delegate<void(const midi2pwm::midi::SystemExclusiveMessage &)>;
 
-    explicit MidiEndpoint(WriteCallback write, bool synchronous_ack = false);
+    explicit MidiEndpoint(WriteCallback write);
 
     MidiEndpoint(const MidiEndpoint &) = delete;
     MidiEndpoint &operator=(const MidiEndpoint &) = delete;

@@ -21,7 +21,7 @@ public:
     using HeartBeatHandler = etl::delegate<void(const midi2pwm::pwm::HeartBeat&)>;
     using ResponseHandler = etl::delegate<void(const midi2pwm::pwm::Response&)>;
 
-    explicit PwmEndpoint(WriteCallback write, bool synchronous_ack = false);
+    explicit PwmEndpoint(WriteCallback write);
 
     PwmEndpoint(const PwmEndpoint&) = delete;
     PwmEndpoint& operator=(const PwmEndpoint&) = delete;

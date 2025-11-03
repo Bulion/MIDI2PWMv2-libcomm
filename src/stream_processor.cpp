@@ -95,7 +95,7 @@ bool StreamProcessor::extractFrames()
 
     FrameTransport::WriteCallback writeCallback =
         FrameTransport::WriteCallback::create(dummyWriteCallback);
-    FrameTransport frameTransport(writeCallback, true);
+    FrameTransport frameTransport(writeCallback);
 
     while (size_ >= FrameTransport::kHeaderSize) {
         std::uint32_t payloadSizeBytesLittleEndian = 0;
