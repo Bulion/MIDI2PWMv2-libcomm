@@ -191,12 +191,38 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
     std::uint16_t assignedMidiNoteNumber,
     float measuredVoltageVolts,
     float measuredCurrentAmps,
-    float midpointPositionValue,
-    float minimumPositionValue,
-    float maximumPositionValue,
-    bool channelExperiencedFaultCondition)
+    bool channelExperiencedFaultCondition,
+    midi2pwm::pwm::OutputModeType output_mode,
+    const midi2pwm::pwm::ModeParametersUnionUnion& mode_params)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
+
+    flatbuffers::Offset<void> mode_params_offset = 0;
+    midi2pwm::pwm::ModeParametersUnion mode_params_type = midi2pwm::pwm::ModeParametersUnion::NONE;
+
+    if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::InstantModeParams) {
+        const auto* instant = mode_params.AsInstantModeParams();
+        if (instant) {
+            mode_params_offset = midi2pwm::pwm::CreateInstantModeParams(
+                flatBuffersBuilder,
+                instant->on_level,
+                instant->velocity_sensitive
+            ).Union();
+            mode_params_type = midi2pwm::pwm::ModeParametersUnion::InstantModeParams;
+        }
+    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::RampedModeParams) {
+        const auto* ramped = mode_params.AsRampedModeParams();
+        if (ramped) {
+            mode_params_offset = midi2pwm::pwm::CreateRampedModeParams(
+                flatBuffersBuilder,
+                ramped->on_level,
+                ramped->velocity_sensitive,
+                ramped->attack_time_ms,
+                ramped->release_time_ms
+            ).Union();
+            mode_params_type = midi2pwm::pwm::ModeParametersUnion::RampedModeParams;
+        }
+    }
 
     auto serializedTelemetryMessage = midi2pwm::pwm::CreateChannelTelemetry(
         flatBuffersBuilder,
@@ -206,10 +232,10 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
         assignedMidiNoteNumber,
         measuredVoltageVolts,
         measuredCurrentAmps,
-        midpointPositionValue,
-        minimumPositionValue,
-        maximumPositionValue,
-        channelExperiencedFaultCondition);
+        channelExperiencedFaultCondition,
+        output_mode,
+        mode_params_type,
+        mode_params_offset);
 
     return buildSerializedPwmMessageEnvelope(
         flatBuffersBuilder, midi2pwm::pwm::Message::ChannelTelemetry, serializedTelemetryMessage.Union());

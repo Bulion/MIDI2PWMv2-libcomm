@@ -55,10 +55,9 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(std::uint16_t channel_n
                                                          std::uint16_t note,
                                                          float voltage,
                                                          float current,
-                                                         float midpoint,
-                                                         float min_point,
-                                                         float max_point,
-                                                         bool had_fault);
+                                                         bool had_fault,
+                                                         midi2pwm::pwm::OutputModeType output_mode,
+                                                         const midi2pwm::pwm::ModeParametersUnionUnion& mode_params);
 
 flatbuffers::DetachedBuffer BuildChannelConfigMessage(std::uint16_t channel_number,
                                                       midi2pwm::pwm::ChannelConfiguration configuration,
