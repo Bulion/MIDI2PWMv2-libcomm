@@ -112,7 +112,7 @@ TEST_CASE("FrameTransport::Send frames payload with header metadata", "[frame_tr
     CaptureWriter writer;
     auto write_callback =
         libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(write_callback, true);
+    libcomm::FrameTransport transport(write_callback);
 
     const std::array<std::uint8_t, 3> payload{0x12U, 0x34U, 0x56U};
 
@@ -156,7 +156,7 @@ TEST_CASE("FrameTransport::Send rejects payloads exceeding maximum frame size", 
     CaptureWriter writer;
     auto write_callback =
         libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(write_callback, true);
+    libcomm::FrameTransport transport(write_callback);
 
     std::vector<std::uint8_t> payload(libcomm::FrameTransport::kMaxFrameSize + 1U, 0xAAU);
 
@@ -170,12 +170,12 @@ TEST_CASE("FrameTransport::Send propagates write failures", "[frame_transport]")
     writer.succeed = false;
     auto write_callback =
         libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(write_callback, true);
+    libcomm::FrameTransport transport(write_callback);
 
     const std::array<std::uint8_t, 2> payload{0x01U, 0x02U};
 
     REQUIRE_FALSE(transport.Send(payload.data(), payload.size()));
-    REQUIRE(writer.call_count == 3);
+    REQUIRE(writer.call_count == 1);
 }
 
 TEST_CASE("FrameTransport::HandleIncoming dispatches payloads to handler", "[frame_transport]")
@@ -183,7 +183,7 @@ TEST_CASE("FrameTransport::HandleIncoming dispatches payloads to handler", "[fra
     CaptureWriter writer;
     auto write_callback =
         libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport sender(write_callback, true);
+    libcomm::FrameTransport sender(write_callback);
 
     const std::array<std::uint8_t, 4> payload{0x9DU, 0x40U, 0x7FU, 0x00U};
     REQUIRE(sender.Send(payload.data(), payload.size()));
@@ -191,7 +191,7 @@ TEST_CASE("FrameTransport::HandleIncoming dispatches payloads to handler", "[fra
     NullWriter null_writer;
     auto noop_writer =
         libcomm::FrameTransport::WriteCallback::create<NullWriter, &NullWriter::Write>(null_writer);
-    libcomm::FrameTransport receiver(noop_writer, true);
+    libcomm::FrameTransport receiver(noop_writer);
 
     CaptureHandler handler;
     auto data_handler =
@@ -207,7 +207,7 @@ TEST_CASE("FrameTransport::HandleIncoming rejects frames with invalid CRC", "[fr
     CaptureWriter writer;
     auto write_callback =
         libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport sender(write_callback, true);
+    libcomm::FrameTransport sender(write_callback);
 
     const std::array<std::uint8_t, 2> payload{0xFEU, 0x01U};
     REQUIRE(sender.Send(payload.data(), payload.size()));
@@ -215,7 +215,7 @@ TEST_CASE("FrameTransport::HandleIncoming rejects frames with invalid CRC", "[fr
     NullWriter null_writer;
     auto noop_writer =
         libcomm::FrameTransport::WriteCallback::create<NullWriter, &NullWriter::Write>(null_writer);
-    libcomm::FrameTransport receiver(noop_writer, true);
+    libcomm::FrameTransport receiver(noop_writer);
 
     CaptureHandler handler;
     auto data_handler =
@@ -228,79 +228,13 @@ TEST_CASE("FrameTransport::HandleIncoming rejects frames with invalid CRC", "[fr
     REQUIRE(handler.call_count == 0);
 }
 
-TEST_CASE("FrameTransport asynchronous send succeeds when peer acknowledges", "[frame_transport]")
-{
-    CaptureHandler handler;
-    auto data_handler =
-        libcomm::FrameTransport::DataHandler::create<CaptureHandler, &CaptureHandler::Handle>(handler);
-
-    LoopbackPipe pipe_sender_to_receiver;
-    LoopbackPipe pipe_receiver_to_sender;
-
-    auto write_to_receiver =
-        libcomm::FrameTransport::WriteCallback::create<LoopbackPipe, &LoopbackPipe::Write>(pipe_sender_to_receiver);
-    auto write_to_sender =
-        libcomm::FrameTransport::WriteCallback::create<LoopbackPipe, &LoopbackPipe::Write>(pipe_receiver_to_sender);
-
-    libcomm::FrameTransport sender(write_to_receiver, false);
-    libcomm::FrameTransport receiver(write_to_sender, false);
-
-    pipe_sender_to_receiver.receiver = &receiver;
-    pipe_sender_to_receiver.handler = data_handler;
-
-    pipe_receiver_to_sender.receiver = &sender;
-    pipe_receiver_to_sender.handler = libcomm::FrameTransport::DataHandler();
-
-    const std::array<std::uint8_t, 3> payload{0x10U, 0x20U, 0x30U};
-
-    REQUIRE(sender.Send(payload.data(), payload.size()));
-    REQUIRE(handler.call_count == 1);
-    REQUIRE(pipe_receiver_to_sender.call_count >= 1);
-
-    const std::uint8_t* ack_header = pipe_receiver_to_sender.last_frame.data();
-    REQUIRE(ack_header[1] == 1U); // FrameType::Ack
-}
-
-TEST_CASE("FrameTransport asynchronous send retries and fails after receiving NACKs", "[frame_transport]")
-{
-    CaptureHandler handler;
-    handler.succeed = false;
-    auto data_handler =
-        libcomm::FrameTransport::DataHandler::create<CaptureHandler, &CaptureHandler::Handle>(handler);
-
-    LoopbackPipe pipe_sender_to_receiver;
-    LoopbackPipe pipe_receiver_to_sender;
-
-    auto write_to_receiver =
-        libcomm::FrameTransport::WriteCallback::create<LoopbackPipe, &LoopbackPipe::Write>(pipe_sender_to_receiver);
-    auto write_to_sender =
-        libcomm::FrameTransport::WriteCallback::create<LoopbackPipe, &LoopbackPipe::Write>(pipe_receiver_to_sender);
-
-    libcomm::FrameTransport sender(write_to_receiver, false);
-    libcomm::FrameTransport receiver(write_to_sender, false);
-
-    pipe_sender_to_receiver.receiver = &receiver;
-    pipe_sender_to_receiver.handler = data_handler;
-
-    pipe_receiver_to_sender.receiver = &sender;
-    pipe_receiver_to_sender.handler = libcomm::FrameTransport::DataHandler();
-
-    const std::array<std::uint8_t, 1> payload{0xFFU};
-
-    REQUIRE_FALSE(sender.Send(payload.data(), payload.size()));
-    REQUIRE(handler.call_count == 3);
-    REQUIRE(pipe_receiver_to_sender.call_count == 3);
-
-    const std::uint8_t* nack_header = pipe_receiver_to_sender.last_frame.data();
-    REQUIRE(nack_header[1] == 2U); // FrameType::Nack
-}
 
 TEST_CASE("FrameTransport::HandleIncoming rejects frames with mismatched protocol version", "[frame_transport]")
 {
     CaptureWriter writer;
     auto write_callback =
         libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
-    libcomm::FrameTransport transport(write_callback, true);
+    libcomm::FrameTransport transport(write_callback);
 
     const std::array<std::uint8_t, 1> payload{0xAAU};
     REQUIRE(transport.Send(payload.data(), payload.size()));
@@ -314,4 +248,79 @@ TEST_CASE("FrameTransport::HandleIncoming rejects frames with mismatched protoco
 
     REQUIRE_FALSE(transport.HandleIncoming(corrupted.data(), corrupted.size(), data_handler));
     REQUIRE(handler.call_count == 0);
+}
+
+TEST_CASE("FrameTransport: roundtrip loopback sends and receives payload correctly", "[frame_transport]")
+{
+    LoopbackPipe loopback;
+    auto write_callback =
+        libcomm::FrameTransport::WriteCallback::create<LoopbackPipe, &LoopbackPipe::Write>(loopback);
+
+    NullWriter null_writer;
+    auto null_write =
+        libcomm::FrameTransport::WriteCallback::create<NullWriter, &NullWriter::Write>(null_writer);
+
+    libcomm::FrameTransport sender(write_callback);
+    libcomm::FrameTransport receiver(null_write);
+
+    CaptureHandler handler;
+    auto data_handler =
+        libcomm::FrameTransport::DataHandler::create<CaptureHandler, &CaptureHandler::Handle>(handler);
+
+    loopback.receiver = &receiver;
+    loopback.handler = data_handler;
+
+    const std::array<std::uint8_t, 7> test_payload{0x01U, 0x02U, 0x03U, 0xAAU, 0xBBU, 0xCCU, 0xDDU};
+
+    REQUIRE(sender.Send(test_payload.data(), test_payload.size()));
+    REQUIRE(loopback.call_count == 1);
+    REQUIRE(handler.call_count == 1);
+    REQUIRE(handler.last_payload == std::vector<std::uint8_t>(test_payload.begin(), test_payload.end()));
+}
+
+TEST_CASE("FrameTransport: sequence numbers increment correctly", "[frame_transport]")
+{
+    CaptureWriter writer;
+    auto write_callback =
+        libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
+    libcomm::FrameTransport transport(write_callback);
+
+    const std::array<std::uint8_t, 2> payload{0xAAU, 0xBBU};
+
+    REQUIRE(transport.Send(payload.data(), payload.size()));
+    std::uint16_t seq1 = 0;
+    std::memcpy(&seq1, &writer.last_buffer[2], sizeof(seq1));
+    seq1 = flatbuffers::EndianScalar(seq1);
+
+    REQUIRE(transport.Send(payload.data(), payload.size()));
+    std::uint16_t seq2 = 0;
+    std::memcpy(&seq2, &writer.last_buffer[2], sizeof(seq2));
+    seq2 = flatbuffers::EndianScalar(seq2);
+
+    REQUIRE(transport.Send(payload.data(), payload.size()));
+    std::uint16_t seq3 = 0;
+    std::memcpy(&seq3, &writer.last_buffer[2], sizeof(seq3));
+    seq3 = flatbuffers::EndianScalar(seq3);
+
+    REQUIRE(seq1 == 1U);
+    REQUIRE(seq2 == 2U);
+    REQUIRE(seq3 == 3U);
+}
+
+TEST_CASE("FrameTransport: accepts exactly 4096-byte payload", "[frame_transport]")
+{
+    CaptureWriter writer;
+    auto write_callback =
+        libcomm::FrameTransport::WriteCallback::create<CaptureWriter, &CaptureWriter::Write>(writer);
+    libcomm::FrameTransport transport(write_callback);
+
+    std::vector<std::uint8_t> max_payload(libcomm::FrameTransport::kMaxFrameSize, 0x55U);
+
+    REQUIRE(transport.Send(max_payload.data(), max_payload.size()));
+    REQUIRE(writer.call_count == 1);
+
+    const auto expected_frame_size = libcomm::FrameTransport::kHeaderSize +
+                                     libcomm::FrameTransport::kMaxFrameSize +
+                                     libcomm::FrameTransport::kCrcSize;
+    REQUIRE(writer.last_buffer.size() == expected_frame_size);
 }
