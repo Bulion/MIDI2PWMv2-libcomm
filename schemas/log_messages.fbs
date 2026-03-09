@@ -1,0 +1,25 @@
+namespace midi2pwm.log;
+
+enum LogLevel : ubyte {
+  Error = 0,
+  Warning = 1,
+  Info = 2,
+  Debug = 3
+}
+
+table LogForward {
+  level: LogLevel = Info;
+  tag: string;
+  message: string;
+}
+
+union Message {
+  LogForward
+}
+
+table Envelope {
+  message: Message;
+}
+
+root_type Envelope;
+file_identifier "LOGX";

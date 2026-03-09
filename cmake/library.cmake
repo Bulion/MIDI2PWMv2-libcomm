@@ -1,5 +1,6 @@
 set(LIBCOMM_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(LIBCOMM_SCHEMAS
+    "${CMAKE_CURRENT_SOURCE_DIR}/schemas/log_messages.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/midi_messages.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_types.fbs"
     "${CMAKE_CURRENT_SOURCE_DIR}/schemas/pwm_output_modes.fbs"
@@ -36,6 +37,7 @@ add_library(libcomm STATIC
     src/midi_endpoint.cpp
     src/frame_transport.cpp
     src/pwm_endpoint.cpp
+    src/log_endpoint.cpp
     src/logging.cpp
     src/stream_processor.cpp
 )
