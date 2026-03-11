@@ -1,0 +1,59 @@
+namespace midi2pwm.ota;
+
+enum Target : ubyte { Stm32 = 0, Esp32 = 1 }
+
+enum OtaStatus : ubyte {
+  Idle = 0,
+  Preparing = 1,
+  Receiving = 2,
+  Verifying = 3,
+  Applying = 4,
+  Rebooting = 5,
+  Error = 6
+}
+
+table OtaBegin {
+  target: Target;
+  firmware_size: uint32;
+  firmware_crc32: uint32;
+  version_string: string;
+  total_chunks: uint16;
+}
+
+table OtaData {
+  target: Target;
+  chunk_index: uint16;
+  data: [ubyte];
+}
+
+table OtaEnd {
+  target: Target;
+}
+
+table OtaProgress {
+  target: Target;
+  status: OtaStatus;
+  chunks_received: uint16;
+  total_chunks: uint16;
+  error_message: string;
+}
+
+table OtaAbort {
+  target: Target;
+  reason: string;
+}
+
+union Message {
+  OtaBegin,
+  OtaData,
+  OtaEnd,
+  OtaProgress,
+  OtaAbort
+}
+
+table Envelope {
+  message: Message;
+}
+
+root_type Envelope;
+file_identifier "OTAX";
