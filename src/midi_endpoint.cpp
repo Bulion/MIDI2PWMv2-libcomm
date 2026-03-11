@@ -70,7 +70,7 @@ bool MidiEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t
     case midi2pwm::midi::Packet::ChannelMessage: {
         const auto *channelMessage = deserializedEnvelope->packet_as_ChannelMessage();
         if (channelMessage) {
-            LIBCOMM_LOG_INFO(TAG, "Received ChannelMessage: type=%u channel=%u", static_cast<unsigned int>(channelMessage->message_type()), channelMessage->channel());
+            LIBCOMM_LOG_DEBUG(TAG, "Received ChannelMessage: type=%u channel=%u", static_cast<unsigned int>(channelMessage->message_type()), channelMessage->channel());
             if (channel_handler_) {
                 LIBCOMM_LOG_DEBUG(TAG, "ChannelMessage: data1=%u data2=%u", channelMessage->data1(), channelMessage->data2());
                 channel_handler_(*channelMessage);
@@ -94,7 +94,7 @@ bool MidiEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t
         break;
     }
     case midi2pwm::midi::Packet::SystemRealTimeMessage: {
-        LIBCOMM_LOG_INFO(TAG, "Received SystemRealTimeMessage");
+        LIBCOMM_LOG_DEBUG(TAG, "Received SystemRealTimeMessage");
         if (system_real_time_handler_) {
             const auto *systemRealTimeMessage = deserializedEnvelope->packet_as_SystemRealTimeMessage();
             if (systemRealTimeMessage) {

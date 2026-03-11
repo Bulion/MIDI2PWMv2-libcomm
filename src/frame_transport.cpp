@@ -153,7 +153,7 @@ bool FrameTransport::Send(const std::uint8_t *payloadData, std::size_t payloadSi
         TransmitFrame(FrameType::Data, allocatedSequenceNumber, payloadData, payloadSizeBytes);
 
     if (transmissionSucceeded) {
-        LIBCOMM_LOG_INFO(TAG, "Frame sent successfully seq=%u", allocatedSequenceNumber);
+        LIBCOMM_LOG_DEBUG(TAG, "Frame sent successfully seq=%u", allocatedSequenceNumber);
     } else {
         LIBCOMM_LOG_ERROR(TAG, "Transmission failed for seq=%u", allocatedSequenceNumber);
     }
@@ -222,7 +222,7 @@ bool FrameTransport::HandleIncoming(
         if (!dataHandler) {
             LIBCOMM_LOG_WARN(TAG, "No data handler registered for seq=%u", receivedSequenceNumber);
         } else {
-            LIBCOMM_LOG_WARN(TAG, "Data handler failed for seq=%u", receivedSequenceNumber);
+            LIBCOMM_LOG_DEBUG(TAG, "Data handler failed for seq=%u", receivedSequenceNumber);
         }
     }
 

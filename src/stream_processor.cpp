@@ -87,8 +87,8 @@ bool StreamProcessor::extractFrames()
     };
 
     auto dataHandler = [this](const std::uint8_t* payload, std::size_t payloadSize) -> bool {
-        LIBCOMM_LOG_INFO(TAG, "Extracted frame payload: %u bytes",
-                         static_cast<unsigned int>(payloadSize));
+        LIBCOMM_LOG_DEBUG(TAG, "Extracted frame payload: %u bytes",
+                          static_cast<unsigned int>(payloadSize));
         frameCallback_(payload, payloadSize);
         return true;
     };
@@ -178,7 +178,7 @@ bool StreamProcessor::trySync()
 
     for (std::size_t searchPos = 1; searchPos < size_; ++searchPos) {
         if (buffer_[searchPos] == kProtocolVersion) {
-            LIBCOMM_LOG_INFO(TAG, "Found potential frame header at offset %u, discarding %u bytes",
+            LIBCOMM_LOG_DEBUG(TAG, "Found potential frame header at offset %u, discarding %u bytes",
                              static_cast<unsigned int>(searchPos),
                              static_cast<unsigned int>(searchPos));
 
