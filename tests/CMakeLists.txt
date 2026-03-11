@@ -17,6 +17,8 @@ add_executable(libcomm_tests
     midi_endpoint_tests.cpp
     pwm_endpoint_tests.cpp
     stream_processor_tests.cpp
+    ota_endpoint_tests.cpp
+    ota_manager_tests.cpp
 )
 target_compile_features(libcomm_tests PRIVATE cxx_std_20)
 
