@@ -98,7 +98,7 @@ bool MidiEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t
         if (system_real_time_handler_) {
             const auto *systemRealTimeMessage = deserializedEnvelope->packet_as_SystemRealTimeMessage();
             if (systemRealTimeMessage) {
-                LIBCOMM_LOG_DEBUG(TAG, "SystemRealTime: type=%u", static_cast<unsigned int>(systemRealTimeMessage->type()));
+                LIBCOMM_LOG_DEBUG(TAG, "SystemRealTime: type=%u", static_cast<unsigned int>(systemRealTimeMessage->message_type()));
                 system_real_time_handler_(*systemRealTimeMessage);
             }
         } else {
