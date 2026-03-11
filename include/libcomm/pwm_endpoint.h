@@ -66,6 +66,8 @@ flatbuffers::DetachedBuffer BuildChannelConfigMessage(std::uint16_t channel_numb
                                                       float min_point,
                                                       float max_point);
 
+flatbuffers::DetachedBuffer BuildChannelConfigMessageFromNative(const midi2pwm::pwm::ChannelConfigT &config);
+
 struct FaultLogEntryData {
     std::uint32_t timestamp_ms;
     midi2pwm::pwm::FaultType fault;
@@ -77,7 +79,7 @@ flatbuffers::DetachedBuffer BuildFaultLogMessage(std::uint32_t log_size,
 
 flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation operation);
 
-flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool request_telemetry = false);
+flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool request_telemetry, uint16_t epoch);
 
 flatbuffers::DetachedBuffer BuildResponseMessage(midi2pwm::pwm::ResponseStatus status,
                                                  std::uint32_t error_code = 0);

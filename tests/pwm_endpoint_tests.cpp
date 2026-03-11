@@ -109,12 +109,14 @@ struct FaultControlProbe {
 
 struct HeartBeatProbe {
     bool request_telemetry{false};
+    uint16_t epoch{0};
     std::size_t call_count{0};
 
     void Handle(const midi2pwm::pwm::HeartBeat& message)
     {
         ++call_count;
         request_telemetry = message.request_telemetry();
+        epoch = message.epoch();
     }
 };
 
@@ -425,22 +427,24 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
 
     SECTION("HeartBeat builder with request_telemetry = false")
     {
-        auto buffer = libcomm::BuildHeartBeatMessage(false);
+        auto buffer = libcomm::BuildHeartBeatMessage(false, 42);
         VerifyEnvelopeType(buffer, Message::HeartBeat);
         const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
         const auto* message = envelope->message_as_HeartBeat();
         REQUIRE(message != nullptr);
         CHECK(message->request_telemetry() == false);
+        CHECK(message->epoch() == 42);
     }
 
     SECTION("HeartBeat builder with request_telemetry = true")
     {
-        auto buffer = libcomm::BuildHeartBeatMessage(true);
+        auto buffer = libcomm::BuildHeartBeatMessage(true, 1234);
         VerifyEnvelopeType(buffer, Message::HeartBeat);
         const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
         const auto* message = envelope->message_as_HeartBeat();
         REQUIRE(message != nullptr);
         CHECK(message->request_telemetry() == true);
+        CHECK(message->epoch() == 1234);
     }
 
     SECTION("Response builder with ACK status")
@@ -595,11 +599,12 @@ TEST_CASE("PwmEndpoint routes HeartBeat envelopes", "[pwm_endpoint]")
     HeartBeatProbe probe;
     harness.receiver.OnHeartBeat(libcomm::PwmEndpoint::HeartBeatHandler::create<HeartBeatProbe, &HeartBeatProbe::Handle>(probe));
 
-    auto buffer = libcomm::BuildHeartBeatMessage(true);
+    auto buffer = libcomm::BuildHeartBeatMessage(true, 999);
     REQUIRE(harness.sender.Send(std::move(buffer)));
 
     REQUIRE(probe.call_count == 1);
     CHECK(probe.request_telemetry == true);
+    CHECK(probe.epoch == 999);
 }
 
 TEST_CASE("PwmEndpoint routes Response envelopes", "[pwm_endpoint]")

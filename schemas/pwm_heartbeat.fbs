@@ -9,6 +9,7 @@ namespace midi2pwm.pwm;
 
 table HeartBeat {
   request_telemetry: bool = false;
+  epoch: uint16;
 }
 
 root_type HeartBeat;

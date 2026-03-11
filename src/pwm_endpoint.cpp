@@ -91,7 +91,7 @@ bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t 
     case midi2pwm::pwm::Message::ChannelTelemetry: {
         const auto *channelTelemetryMessage = deserializedEnvelope->message_as_ChannelTelemetry();
         if (channelTelemetryMessage) {
-            LIBCOMM_LOG_INFO(TAG, "Received ChannelTelemetry: channel=%u status=%u", channelTelemetryMessage->channel_number(), static_cast<unsigned int>(channelTelemetryMessage->status()));
+            LIBCOMM_LOG_DEBUG(TAG, "Received ChannelTelemetry: channel=%u status=%u", channelTelemetryMessage->channel_number(), static_cast<unsigned int>(channelTelemetryMessage->status()));
             if (telemetry_handler_) {
                 LIBCOMM_LOG_DEBUG(TAG, "Telemetry: voltage=%d mV current=%d mA fault=%d", static_cast<int>(channelTelemetryMessage->voltage() * 1000), static_cast<int>(channelTelemetryMessage->current() * 1000), channelTelemetryMessage->had_fault());
                 telemetry_handler_(*channelTelemetryMessage);
@@ -141,7 +141,7 @@ bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t 
     case midi2pwm::pwm::Message::HeartBeat: {
         const auto *heartBeatMessage = deserializedEnvelope->message_as_HeartBeat();
         if (heartBeatMessage) {
-            LIBCOMM_LOG_DEBUG(TAG, "Received HeartBeat: sequence=%u", static_cast<unsigned int>(heartBeatMessage->sequence()));
+            LIBCOMM_LOG_DEBUG(TAG, "Received HeartBeat: request_telemetry=%d epoch=%u", heartBeatMessage->request_telemetry(), heartBeatMessage->epoch());
             if (heartbeat_handler_) {
                 heartbeat_handler_(*heartBeatMessage);
             } else {
@@ -327,6 +327,16 @@ flatbuffers::DetachedBuffer BuildChannelConfigMessage(
         flatBuffersBuilder, midi2pwm::pwm::Message::ChannelConfig, serializedConfigMessage.Union());
 }
 
+flatbuffers::DetachedBuffer BuildChannelConfigMessageFromNative(const midi2pwm::pwm::ChannelConfigT &config)
+{
+    flatbuffers::FlatBufferBuilder flatBuffersBuilder;
+
+    auto serializedConfigMessage = midi2pwm::pwm::ChannelConfig::Pack(flatBuffersBuilder, &config);
+
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::ChannelConfig, serializedConfigMessage.Union());
+}
+
 flatbuffers::DetachedBuffer BuildFaultLogMessage(
     std::uint32_t totalLogSizeEntries, const FaultLogEntryData *faultLogEntries, std::size_t providedEntryCount)
 {
@@ -370,11 +380,11 @@ flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControl
         flatBuffersBuilder, midi2pwm::pwm::Message::FaultControlCommand, serializedFaultControlCommand.Union());
 }
 
-flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool shouldRequestTelemetry)
+flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool shouldRequestTelemetry, uint16_t epoch)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
-    auto serializedHeartBeatMessage = midi2pwm::pwm::CreateHeartBeat(flatBuffersBuilder, shouldRequestTelemetry);
+    auto serializedHeartBeatMessage = midi2pwm::pwm::CreateHeartBeat(flatBuffersBuilder, shouldRequestTelemetry, epoch);
 
     return buildSerializedPwmMessageEnvelope(
         flatBuffersBuilder, midi2pwm::pwm::Message::HeartBeat, serializedHeartBeatMessage.Union());
