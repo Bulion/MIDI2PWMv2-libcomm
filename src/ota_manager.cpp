@@ -31,6 +31,20 @@ void OtaManager::transitionTo(midi2pwm::ota::OtaStatus newStatus, const char* er
 
 void OtaManager::handleBegin(const midi2pwm::ota::OtaBegin& msg)
 {
+    handleBegin(msg.firmware_size(), msg.firmware_crc32(), msg.total_chunks());
+}
+
+void OtaManager::handleBegin(std::uint32_t firmwareSize, std::uint32_t firmwareCrc32, std::uint16_t totalChunks)
+{
+    if (status_ != midi2pwm::ota::OtaStatus::Idle) {
+        LIBCOMM_LOG_INFO(TAG, "Resetting from state %u for new OTA session",
+                         static_cast<unsigned int>(status_));
+        writer_.abort();
+        status_ = midi2pwm::ota::OtaStatus::Idle;
+        receivedChunks_ = 0;
+        totalChunks_ = 0;
+    }
+
     if (status_ != midi2pwm::ota::OtaStatus::Idle) {
         LIBCOMM_LOG_ERROR(TAG, "OtaBegin received in non-idle state %u",
                           static_cast<unsigned int>(status_));
@@ -38,13 +52,13 @@ void OtaManager::handleBegin(const midi2pwm::ota::OtaBegin& msg)
         return;
     }
 
-    expectedCrc32_ = msg.firmware_crc32();
-    totalChunks_ = msg.total_chunks();
+    expectedCrc32_ = firmwareCrc32;
+    totalChunks_ = totalChunks;
     receivedChunks_ = 0;
 
     transitionTo(midi2pwm::ota::OtaStatus::Preparing);
 
-    if (!writer_.begin(msg.firmware_size())) {
+    if (!writer_.begin(firmwareSize)) {
         LIBCOMM_LOG_ERROR(TAG, "Flash erase failed");
         writer_.abort();
         transitionTo(midi2pwm::ota::OtaStatus::Error, "Flash erase failed");
@@ -57,22 +71,6 @@ void OtaManager::handleBegin(const midi2pwm::ota::OtaBegin& msg)
 
 void OtaManager::handleData(const midi2pwm::ota::OtaData& msg)
 {
-    if (status_ != midi2pwm::ota::OtaStatus::Receiving) {
-        LIBCOMM_LOG_ERROR(TAG, "OtaData received in state %u",
-                          static_cast<unsigned int>(status_));
-        return;
-    }
-
-    if (msg.chunk_index() != receivedChunks_) {
-        LIBCOMM_LOG_ERROR(TAG, "Unexpected chunk index: got %u expected %u",
-                          static_cast<unsigned int>(msg.chunk_index()),
-                          static_cast<unsigned int>(receivedChunks_));
-        writer_.abort();
-        transitionTo(midi2pwm::ota::OtaStatus::Error, "Unexpected chunk index");
-        status_ = midi2pwm::ota::OtaStatus::Idle;
-        return;
-    }
-
     const auto* chunkData = msg.data();
     if (!chunkData || chunkData->size() == 0U) {
         LIBCOMM_LOG_ERROR(TAG, "Empty chunk data at index %u",
@@ -82,10 +80,39 @@ void OtaManager::handleData(const midi2pwm::ota::OtaData& msg)
         status_ = midi2pwm::ota::OtaStatus::Idle;
         return;
     }
+    handleData(msg.chunk_index(), chunkData->data(), chunkData->size());
+}
 
-    if (!writer_.writeChunk(msg.chunk_index(), chunkData->data(), chunkData->size())) {
+void OtaManager::handleData(std::uint16_t chunkIndex, const std::uint8_t* data, std::size_t dataSize)
+{
+    if (status_ != midi2pwm::ota::OtaStatus::Receiving) {
+        LIBCOMM_LOG_ERROR(TAG, "OtaData received in state %u",
+                          static_cast<unsigned int>(status_));
+        return;
+    }
+
+    if (chunkIndex != receivedChunks_) {
+        LIBCOMM_LOG_ERROR(TAG, "Unexpected chunk index: got %u expected %u",
+                          static_cast<unsigned int>(chunkIndex),
+                          static_cast<unsigned int>(receivedChunks_));
+        writer_.abort();
+        transitionTo(midi2pwm::ota::OtaStatus::Error, "Unexpected chunk index");
+        status_ = midi2pwm::ota::OtaStatus::Idle;
+        return;
+    }
+
+    if (!data || dataSize == 0U) {
+        LIBCOMM_LOG_ERROR(TAG, "Empty chunk data at index %u",
+                          static_cast<unsigned int>(chunkIndex));
+        writer_.abort();
+        transitionTo(midi2pwm::ota::OtaStatus::Error, "Empty chunk data");
+        status_ = midi2pwm::ota::OtaStatus::Idle;
+        return;
+    }
+
+    if (!writer_.writeChunk(chunkIndex, data, dataSize)) {
         LIBCOMM_LOG_ERROR(TAG, "Flash write failed at chunk %u",
-                          static_cast<unsigned int>(msg.chunk_index()));
+                          static_cast<unsigned int>(chunkIndex));
         writer_.abort();
         transitionTo(midi2pwm::ota::OtaStatus::Error, "Flash write failed");
         status_ = midi2pwm::ota::OtaStatus::Idle;
@@ -97,12 +124,21 @@ void OtaManager::handleData(const midi2pwm::ota::OtaData& msg)
                       static_cast<unsigned int>(receivedChunks_),
                       static_cast<unsigned int>(totalChunks_));
 
-    if (sendProgress_) {
+    constexpr std::uint16_t kProgressReportInterval = 50;
+    bool isLastChunk = (receivedChunks_ == totalChunks_);
+    bool isReportDue = (receivedChunks_ % kProgressReportInterval) == 0;
+
+    if (sendProgress_ && (isLastChunk || isReportDue)) {
         sendProgress_(target_, status_, receivedChunks_, totalChunks_, nullptr);
     }
 }
 
 void OtaManager::handleEnd(const midi2pwm::ota::OtaEnd&)
+{
+    handleEnd();
+}
+
+void OtaManager::handleEnd()
 {
     if (status_ != midi2pwm::ota::OtaStatus::Receiving) {
         LIBCOMM_LOG_ERROR(TAG, "OtaEnd received in state %u",
@@ -153,16 +189,19 @@ void OtaManager::handleEnd(const midi2pwm::ota::OtaEnd&)
 
 void OtaManager::handleAbort(const midi2pwm::ota::OtaAbort& msg)
 {
+    handleAbort(msg.reason() ? msg.reason()->c_str() : nullptr);
+}
+
+void OtaManager::handleAbort(const char* reason)
+{
     if (status_ == midi2pwm::ota::OtaStatus::Idle) {
         LIBCOMM_LOG_WARN(TAG, "OtaAbort received in idle state, ignoring");
         return;
     }
 
-    LIBCOMM_LOG_INFO(TAG, "OTA aborted: %s",
-                     msg.reason() ? msg.reason()->c_str() : "no reason");
+    LIBCOMM_LOG_INFO(TAG, "OTA aborted: %s", reason ? reason : "no reason");
     writer_.abort();
-    transitionTo(midi2pwm::ota::OtaStatus::Error,
-                 msg.reason() ? msg.reason()->c_str() : "Aborted by host");
+    transitionTo(midi2pwm::ota::OtaStatus::Error, reason ? reason : "Aborted by host");
     status_ = midi2pwm::ota::OtaStatus::Idle;
 }
 

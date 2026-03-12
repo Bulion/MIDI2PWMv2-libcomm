@@ -24,6 +24,11 @@ public:
     void handleEnd(const midi2pwm::ota::OtaEnd& msg);
     void handleAbort(const midi2pwm::ota::OtaAbort& msg);
 
+    void handleBegin(std::uint32_t firmwareSize, std::uint32_t firmwareCrc32, std::uint16_t totalChunks);
+    void handleData(std::uint16_t chunkIndex, const std::uint8_t* data, std::size_t dataSize);
+    void handleEnd();
+    void handleAbort(const char* reason);
+
     midi2pwm::ota::OtaStatus status() const;
 
 private:
