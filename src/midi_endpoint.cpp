@@ -36,7 +36,7 @@ bool MidiEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t
 
     bool hasValidFlatBuffersIdentifier = midi2pwm::midi::EnvelopeBufferHasIdentifier(framePayloadData);
     if (!hasValidFlatBuffersIdentifier) {
-        LIBCOMM_LOG_ERROR(TAG, "Invalid FlatBuffers identifier in MIDI message");
+        LIBCOMM_LOG_DEBUG(TAG, "Invalid FlatBuffers identifier in MIDI message");
         return false;
     }
 

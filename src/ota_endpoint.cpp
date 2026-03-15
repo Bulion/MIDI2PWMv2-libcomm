@@ -61,7 +61,7 @@ bool OtaEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t 
 
     bool hasValidIdentifier = midi2pwm::ota::EnvelopeBufferHasIdentifier(framePayloadData);
     if (!hasValidIdentifier) {
-        LIBCOMM_LOG_ERROR(TAG, "Invalid FlatBuffers identifier in OTA message");
+        LIBCOMM_LOG_DEBUG(TAG, "Invalid FlatBuffers identifier in OTA message");
         return false;
     }
 

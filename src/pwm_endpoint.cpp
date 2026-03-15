@@ -70,7 +70,7 @@ bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t 
 
     bool hasValidFlatBuffersIdentifier = midi2pwm::pwm::EnvelopeBufferHasIdentifier(framePayloadData);
     if (!hasValidFlatBuffersIdentifier) {
-        LIBCOMM_LOG_ERROR(TAG, "Invalid FlatBuffers identifier in PWM message");
+        LIBCOMM_LOG_DEBUG(TAG, "Invalid FlatBuffers identifier in PWM message");
         return false;
     }
 

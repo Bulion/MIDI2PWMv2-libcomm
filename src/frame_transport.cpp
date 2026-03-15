@@ -115,7 +115,7 @@ bool FrameTransport::TransmitFrame(
         &crc32ValueLittleEndian,
         sizeof(crc32ValueLittleEndian));
 
-    LIBCOMM_LOG_INFO(TAG, "TX frame seq=%u payload=%u total=%u", sequenceNumber, static_cast<unsigned int>(payloadSizeBytes), static_cast<unsigned int>(totalTransmitSizeBytes));
+    LIBCOMM_LOG_DEBUG(TAG, "TX frame seq=%u payload=%u total=%u", sequenceNumber, static_cast<unsigned int>(payloadSizeBytes), static_cast<unsigned int>(totalTransmitSizeBytes));
 
     bool writeSucceeded = write_(buffer.data(), totalTransmitSizeBytes);
     if (!writeSucceeded) {
