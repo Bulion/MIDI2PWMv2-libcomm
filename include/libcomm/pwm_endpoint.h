@@ -37,8 +37,9 @@ public:
     void OnHeartBeat(HeartBeatHandler handler);
     void OnResponse(ResponseHandler handler);
 
-private:
     bool HandleFrame(const std::uint8_t* data, std::size_t size) const;
+
+private:
 
     FrameTransport transport_;
     ChannelTelemetryHandler telemetry_handler_;

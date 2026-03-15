@@ -36,8 +36,9 @@ public:
     void OnSystemRealTime(SystemRealTimeHandler handler);
     void OnSystemExclusive(SystemExclusiveHandler handler);
 
-private:
     bool HandleFrame(const std::uint8_t *data, std::size_t size) const;
+
+private:
 
     FrameTransport transport_;
     PingHandler ping_handler_;

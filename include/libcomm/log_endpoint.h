@@ -26,8 +26,9 @@ public:
 
     void OnLogForward(LogForwardHandler handler);
 
-private:
     bool HandleFrame(const std::uint8_t* data, std::size_t size) const;
+
+private:
 
     FrameTransport transport_;
     LogForwardHandler log_forward_handler_;
