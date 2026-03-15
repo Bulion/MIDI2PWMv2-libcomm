@@ -82,36 +82,44 @@ bool FrameTransport::TransmitFrame(
     }
 
     constexpr std::size_t MAXIMUM_TOTAL_BUFFER_SIZE_BYTES = kHeaderSize + kMaxFrameSize + kCrcSize;
-    etl::array<std::uint8_t, MAXIMUM_TOTAL_BUFFER_SIZE_BYTES> transmitBuffer{};
+    constexpr std::size_t PING_PONG_BUFFER_COUNT = 2;
+    static etl::array<std::uint8_t, MAXIMUM_TOTAL_BUFFER_SIZE_BYTES> transmitBuffers[PING_PONG_BUFFER_COUNT]{};
+    static std::size_t activeBufferIndex = 0;
+    static etl::mutex transmitMutex;
 
     std::size_t totalTransmitSizeBytes = kHeaderSize + payloadSizeBytes + kCrcSize;
 
-    transmitBuffer[0] = kProtocolVersion;
-    transmitBuffer[1] = static_cast<std::uint8_t>(type);
+    etl::lock_guard<etl::mutex> transmitLock(transmitMutex);
+
+    auto &buffer = transmitBuffers[activeBufferIndex];
+    activeBufferIndex = (activeBufferIndex + 1) % PING_PONG_BUFFER_COUNT;
+
+    buffer[0] = kProtocolVersion;
+    buffer[1] = static_cast<std::uint8_t>(type);
 
     std::uint16_t sequenceNumberLittleEndian = flatbuffers::EndianScalar(sequenceNumber);
-    std::memcpy(&transmitBuffer[2], &sequenceNumberLittleEndian, sizeof(sequenceNumberLittleEndian));
+    std::memcpy(&buffer[2], &sequenceNumberLittleEndian, sizeof(sequenceNumberLittleEndian));
 
     std::uint32_t payloadSizeBytesLittleEndian =
         flatbuffers::EndianScalar(static_cast<std::uint32_t>(payloadSizeBytes));
-    std::memcpy(&transmitBuffer[4], &payloadSizeBytesLittleEndian, sizeof(payloadSizeBytesLittleEndian));
+    std::memcpy(&buffer[4], &payloadSizeBytesLittleEndian, sizeof(payloadSizeBytesLittleEndian));
 
     if (payloadData && payloadSizeBytes > 0U) {
-        std::memcpy(&transmitBuffer[kHeaderSize], payloadData, payloadSizeBytes);
+        std::memcpy(&buffer[kHeaderSize], payloadData, payloadSizeBytes);
     }
 
-    std::uint32_t computedCrc32Value = ComputeCrc32(transmitBuffer.data(), totalTransmitSizeBytes - kCrcSize);
+    std::uint32_t computedCrc32Value = ComputeCrc32(buffer.data(), totalTransmitSizeBytes - kCrcSize);
     std::uint32_t crc32ValueLittleEndian = flatbuffers::EndianScalar(computedCrc32Value);
     std::memcpy(
-        &transmitBuffer[totalTransmitSizeBytes - kCrcSize],
+        &buffer[totalTransmitSizeBytes - kCrcSize],
         &crc32ValueLittleEndian,
         sizeof(crc32ValueLittleEndian));
 
-    LIBCOMM_LOG_DEBUG(TAG, "Transmitting frame type=%u seq=%u payload_size=%u", static_cast<unsigned int>(type), sequenceNumber, static_cast<unsigned int>(payloadSizeBytes));
+    LIBCOMM_LOG_INFO(TAG, "TX frame seq=%u payload=%u total=%u", sequenceNumber, static_cast<unsigned int>(payloadSizeBytes), static_cast<unsigned int>(totalTransmitSizeBytes));
 
-    bool writeSucceeded = write_(transmitBuffer.data(), totalTransmitSizeBytes);
+    bool writeSucceeded = write_(buffer.data(), totalTransmitSizeBytes);
     if (!writeSucceeded) {
-        LIBCOMM_LOG_ERROR(TAG, "Write callback failed for frame seq=%u", sequenceNumber);
+        LIBCOMM_LOG_ERROR(TAG, "Write callback failed for frame seq=%u total=%u", sequenceNumber, static_cast<unsigned int>(totalTransmitSizeBytes));
     }
 
     return writeSucceeded;
@@ -137,6 +145,50 @@ std::uint16_t FrameTransport::NextSequence()
     return allocatedSequenceNumber;
 }
 
+
+std::size_t FrameTransport::BuildFrame(
+    std::uint16_t sequenceNumber,
+    const std::uint8_t *payload, std::size_t payloadSize,
+    std::uint8_t *outputBuffer, std::size_t outputBufferCapacity)
+{
+    if (payloadSize > kMaxFrameSize) {
+        LIBCOMM_LOG_ERROR(TAG, "BuildFrame: payload %u exceeds max %u",
+                          static_cast<unsigned int>(payloadSize),
+                          static_cast<unsigned int>(kMaxFrameSize));
+        return 0;
+    }
+
+    std::size_t totalSize = kHeaderSize + payloadSize + kCrcSize;
+    if (totalSize > outputBufferCapacity) {
+        LIBCOMM_LOG_ERROR(TAG, "BuildFrame: frame %u exceeds buffer %u",
+                          static_cast<unsigned int>(totalSize),
+                          static_cast<unsigned int>(outputBufferCapacity));
+        return 0;
+    }
+
+    if (!outputBuffer) {
+        return 0;
+    }
+
+    outputBuffer[0] = kProtocolVersion;
+    outputBuffer[1] = static_cast<std::uint8_t>(FrameType::Data);
+
+    std::uint16_t seqLE = flatbuffers::EndianScalar(sequenceNumber);
+    std::memcpy(&outputBuffer[2], &seqLE, sizeof(seqLE));
+
+    std::uint32_t sizeLE = flatbuffers::EndianScalar(static_cast<std::uint32_t>(payloadSize));
+    std::memcpy(&outputBuffer[4], &sizeLE, sizeof(sizeLE));
+
+    if (payload && payloadSize > 0U) {
+        std::memcpy(&outputBuffer[kHeaderSize], payload, payloadSize);
+    }
+
+    std::uint32_t crc = ComputeCrc32(outputBuffer, totalSize - kCrcSize);
+    std::uint32_t crcLE = flatbuffers::EndianScalar(crc);
+    std::memcpy(&outputBuffer[totalSize - kCrcSize], &crcLE, sizeof(crcLE));
+
+    return totalSize;
+}
 
 bool FrameTransport::Send(const std::uint8_t *payloadData, std::size_t payloadSizeBytes)
 {

@@ -25,13 +25,19 @@ public:
     bool Send(const std::uint8_t* payload, std::size_t size);
     bool HandleIncoming(const std::uint8_t* data, std::size_t size, const DataHandler& handler);
 
+    static std::uint32_t ComputeCrc32(const std::uint8_t* data, std::size_t length);
+
+    static std::size_t BuildFrame(
+        std::uint16_t sequenceNumber,
+        const std::uint8_t* payload, std::size_t payloadSize,
+        std::uint8_t* outputBuffer, std::size_t outputBufferCapacity);
+
 private:
     enum class FrameType : std::uint8_t {
         Data = 0
     };
 
     static constexpr std::uint8_t kProtocolVersion = 1U;
-    static std::uint32_t ComputeCrc32(const std::uint8_t* data, std::size_t length);
 
     bool TransmitFrame(FrameType type,
                        std::uint16_t sequence,
