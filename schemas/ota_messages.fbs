@@ -18,6 +18,8 @@ table OtaBegin {
   firmware_crc32: uint32;
   version_string: string;
   total_chunks: uint16;
+  compressed_size: uint32;
+  compressed_crc32: uint32;
 }
 
 table OtaData {
