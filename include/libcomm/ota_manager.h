@@ -30,6 +30,7 @@ public:
     void handleAbort(const char* reason);
 
     midi2pwm::ota::OtaStatus status() const;
+    std::uint16_t totalChunks() const { return totalChunks_; }
 
 private:
     void transitionTo(midi2pwm::ota::OtaStatus newStatus, const char* errorMessage = nullptr);
