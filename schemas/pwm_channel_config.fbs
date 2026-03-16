@@ -16,6 +16,9 @@ table ChannelConfig {
   // Output mode configuration
   output_mode: OutputModeType = Instant;
   mode_params: ModeParametersUnion;
+
+  polarity: Polarity = Forward;
+  release_action: ReleaseAction = ActiveBrake;
 }
 
 root_type ChannelConfig;

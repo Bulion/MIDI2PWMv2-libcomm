@@ -7,6 +7,16 @@ enum ChannelConfiguration : ubyte {
   HalfBridge = 1
 }
 
+enum Polarity : ubyte {
+  Forward = 0,
+  Reverse = 1
+}
+
+enum ReleaseAction : ubyte {
+  ActiveBrake = 0,
+  FreeFloat = 1
+}
+
 enum ChannelStatus : ubyte {
   Inactive = 0,
   Active = 1,
