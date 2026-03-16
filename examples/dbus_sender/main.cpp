@@ -115,6 +115,8 @@ int main()
         60U,
         12.3F,
         1.25F,
+        0.75F,
+        midi2pwm::pwm::Polarity::Forward,
         0.52F,
         0.05F,
         0.95F,

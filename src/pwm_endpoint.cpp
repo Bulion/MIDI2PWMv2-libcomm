@@ -191,6 +191,8 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
     std::uint16_t assignedMidiNoteNumber,
     float measuredVoltageVolts,
     float measuredCurrentAmps,
+    float dutyCycleNormalized,
+    midi2pwm::pwm::Polarity polarity,
     bool channelExperiencedFaultCondition,
     midi2pwm::pwm::OutputModeType output_mode,
     const midi2pwm::pwm::ModeParametersUnionUnion& mode_params)
@@ -295,6 +297,8 @@ flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
         assignedMidiNoteNumber,
         measuredVoltageVolts,
         measuredCurrentAmps,
+        dutyCycleNormalized,
+        polarity,
         channelExperiencedFaultCondition,
         output_mode,
         mode_params_type,

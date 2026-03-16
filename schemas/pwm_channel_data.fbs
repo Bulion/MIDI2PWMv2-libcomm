@@ -12,6 +12,8 @@ table ChannelTelemetry {
   note: uint16;
   voltage: float;
   current: float;
+  duty_cycle: float;
+  polarity: Polarity = Forward;
   had_fault: bool = false;
   output_mode: OutputModeType = Instant;
   mode_params: ModeParametersUnion;

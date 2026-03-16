@@ -195,6 +195,8 @@ TEST_CASE("PwmEndpoint routes telemetry envelopes", "[pwm_endpoint]")
         57U,
         3.3F,
         1.2F,
+        0.5F,
+        midi2pwm::pwm::Polarity::Forward,
         true,
         midi2pwm::pwm::OutputModeType::Instant,
         midi2pwm::pwm::ModeParametersUnionUnion());
@@ -356,6 +358,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             88U,
             4.1F,
             2.0F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::Instant,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -478,6 +482,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             60U,
             5.0F,
             0.5F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::Instant,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -495,6 +501,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             72U,
             3.3F,
             1.0F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::Ramped,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -512,6 +520,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             48U,
             12.0F,
             2.5F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::Pulse,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -529,6 +539,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             36U,
             3.3F,
             0.2F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::Toggle,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -546,6 +558,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             64U,
             12.0F,
             1.5F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::ADSR,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -563,6 +577,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             0U,
             5.0F,
             0.8F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::CCControl,
             midi2pwm::pwm::ModeParametersUnionUnion());
@@ -580,6 +596,8 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
             48U,
             9.0F,
             1.2F,
+            0.5F,
+            midi2pwm::pwm::Polarity::Forward,
             false,
             midi2pwm::pwm::OutputModeType::PitchBend,
             midi2pwm::pwm::ModeParametersUnionUnion());
