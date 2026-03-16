@@ -52,6 +52,16 @@ void OtaManager::handleBegin(std::uint32_t firmwareSize, std::uint32_t firmwareC
         return;
     }
 
+    std::uint32_t maxSize = writer_.maxFirmwareSize();
+    if (firmwareSize == 0 || firmwareSize > maxSize) {
+        LIBCOMM_LOG_ERROR(TAG, "Firmware size %u exceeds maximum %u",
+                          static_cast<unsigned int>(firmwareSize),
+                          static_cast<unsigned int>(maxSize));
+        transitionTo(midi2pwm::ota::OtaStatus::Error, "Firmware too large for target");
+        status_ = midi2pwm::ota::OtaStatus::Idle;
+        return;
+    }
+
     expectedCrc32_ = firmwareCrc32;
     totalChunks_ = totalChunks;
     receivedChunks_ = 0;
@@ -175,6 +185,7 @@ void OtaManager::handleEnd()
     }
 
     transitionTo(midi2pwm::ota::OtaStatus::Applying);
+    transitionTo(midi2pwm::ota::OtaStatus::Rebooting);
 
     if (!writer_.activate()) {
         LIBCOMM_LOG_ERROR(TAG, "Slot activation failed");
@@ -183,8 +194,6 @@ void OtaManager::handleEnd()
         status_ = midi2pwm::ota::OtaStatus::Idle;
         return;
     }
-
-    transitionTo(midi2pwm::ota::OtaStatus::Rebooting);
 }
 
 void OtaManager::handleAbort(const midi2pwm::ota::OtaAbort& msg)

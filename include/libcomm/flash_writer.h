@@ -14,6 +14,7 @@ public:
     virtual bool verify(std::uint32_t expectedCrc32) = 0;
     virtual bool activate() = 0;
     virtual void abort() = 0;
+    virtual std::uint32_t maxFirmwareSize() const = 0;
 };
 
 }  // namespace libcomm
