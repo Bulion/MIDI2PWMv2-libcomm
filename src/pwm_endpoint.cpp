@@ -308,11 +308,13 @@ flatbuffers::DetachedBuffer BuildFaultLogMessage(
         flatBuffersBuilder, midi2pwm::pwm::Message::FaultLog, serializedFaultLogMessage.Union());
 }
 
-flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation controlOperation)
+flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation controlOperation,
+                                                     std::uint16_t channelNumber)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder;
 
-    auto serializedFaultControlCommand = midi2pwm::pwm::CreateFaultControlCommand(flatBuffersBuilder, controlOperation);
+    auto serializedFaultControlCommand = midi2pwm::pwm::CreateFaultControlCommand(
+        flatBuffersBuilder, controlOperation, channelNumber);
 
     return buildSerializedPwmMessageEnvelope(
         flatBuffersBuilder, midi2pwm::pwm::Message::FaultControlCommand, serializedFaultControlCommand.Union());

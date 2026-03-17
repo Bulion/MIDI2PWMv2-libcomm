@@ -79,7 +79,8 @@ flatbuffers::DetachedBuffer BuildFaultLogMessage(std::uint32_t log_size,
                                                  const FaultLogEntryData* entries,
                                                  std::size_t entry_count);
 
-flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation operation);
+flatbuffers::DetachedBuffer BuildFaultControlCommand(midi2pwm::pwm::FaultControlOperation operation,
+                                                     std::uint16_t channel_number = 0);
 
 flatbuffers::DetachedBuffer BuildHeartBeatMessage(bool request_telemetry, uint16_t epoch);
 

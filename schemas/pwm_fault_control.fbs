@@ -11,6 +11,7 @@ enum FaultControlOperation : ubyte {
 
 table FaultControlCommand {
   operation: FaultControlOperation;
+  channel_number: uint16;
 }
 
 root_type FaultControlCommand;
