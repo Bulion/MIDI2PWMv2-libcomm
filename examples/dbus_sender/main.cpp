@@ -108,19 +108,16 @@ int main()
 
     SleepMilliseconds(50U);
 
-    auto pwm_telemetry = libcomm::BuildChannelTelemetryMessage(
-        0U,
-        midi2pwm::pwm::ChannelConfiguration::FullBridge,
-        midi2pwm::pwm::ChannelStatus::Active,
-        60U,
-        12.3F,
-        1.25F,
-        0.75F,
-        midi2pwm::pwm::Polarity::Forward,
-        0.52F,
-        0.05F,
-        0.95F,
-        false);
+    midi2pwm::pwm::ChannelTelemetryT telemetry_ch{};
+    telemetry_ch.channel_number = 0U;
+    telemetry_ch.configuration = midi2pwm::pwm::ChannelConfiguration::FullBridge;
+    telemetry_ch.status = midi2pwm::pwm::ChannelStatus::Active;
+    telemetry_ch.note = 60U;
+    telemetry_ch.voltage = 12.3F;
+    telemetry_ch.current = 1.25F;
+    telemetry_ch.had_fault = false;
+    telemetry_ch.output_mode = midi2pwm::pwm::OutputModeType::Instant;
+    auto pwm_telemetry = libcomm::BuildBatchTelemetryMessage(&telemetry_ch, 1);
     if (!pwm_endpoint.Send(std::move(pwm_telemetry))) {
         std::fprintf(stderr, "[sender] Failed to send PWM telemetry message.\n");
         return 1;

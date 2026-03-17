@@ -14,7 +14,7 @@ namespace libcomm {
 class PwmEndpoint {
 public:
     using WriteCallback = FrameTransport::WriteCallback;
-    using ChannelTelemetryHandler = etl::delegate<void(const midi2pwm::pwm::ChannelTelemetry&)>;
+    using BatchTelemetryHandler = etl::delegate<void(const midi2pwm::pwm::BatchTelemetry&)>;
     using ChannelConfigHandler = etl::delegate<void(const midi2pwm::pwm::ChannelConfig&)>;
     using FaultLogHandler = etl::delegate<void(const midi2pwm::pwm::FaultLog&)>;
     using FaultControlHandler = etl::delegate<void(const midi2pwm::pwm::FaultControlCommand&)>;
@@ -30,7 +30,7 @@ public:
     bool Send(flatbuffers::DetachedBuffer&& buffer);
     bool HandleIncoming(const std::uint8_t* data, std::size_t size);
 
-    void OnChannelTelemetry(ChannelTelemetryHandler handler);
+    void OnBatchTelemetry(BatchTelemetryHandler handler);
     void OnChannelConfig(ChannelConfigHandler handler);
     void OnFaultLog(FaultLogHandler handler);
     void OnFaultControl(FaultControlHandler handler);
@@ -42,7 +42,7 @@ public:
 private:
 
     FrameTransport transport_;
-    ChannelTelemetryHandler telemetry_handler_;
+    BatchTelemetryHandler batch_telemetry_handler_;
     ChannelConfigHandler config_handler_;
     FaultLogHandler fault_log_handler_;
     FaultControlHandler fault_control_handler_;
@@ -50,17 +50,9 @@ private:
     ResponseHandler response_handler_;
 };
 
-flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(std::uint16_t channel_number,
-                                                         midi2pwm::pwm::ChannelConfiguration configuration,
-                                                         midi2pwm::pwm::ChannelStatus status,
-                                                         std::uint16_t note,
-                                                         float voltage,
-                                                         float current,
-                                                         float duty_cycle,
-                                                         midi2pwm::pwm::Polarity polarity,
-                                                         bool had_fault,
-                                                         midi2pwm::pwm::OutputModeType output_mode,
-                                                         const midi2pwm::pwm::ModeParametersUnionUnion& mode_params);
+flatbuffers::DetachedBuffer BuildBatchTelemetryMessage(
+    const midi2pwm::pwm::ChannelTelemetryT* channels,
+    std::size_t channelCount);
 
 flatbuffers::DetachedBuffer BuildChannelConfigMessage(std::uint16_t channel_number,
                                                       midi2pwm::pwm::ChannelConfiguration configuration,

@@ -19,5 +19,9 @@ table ChannelTelemetry {
   mode_params: ModeParametersUnion;
 }
 
+table BatchTelemetry {
+  channels: [ChannelTelemetry];
+}
+
 root_type ChannelTelemetry;
 file_identifier "PWDT";

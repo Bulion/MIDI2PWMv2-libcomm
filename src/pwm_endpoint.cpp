@@ -31,9 +31,9 @@ bool PwmEndpoint::HandleIncoming(const std::uint8_t *receivedData, std::size_t r
     return transport_.HandleIncoming(receivedData, receivedSizeBytes, handler);
 }
 
-void PwmEndpoint::OnChannelTelemetry(ChannelTelemetryHandler callbackHandler)
+void PwmEndpoint::OnBatchTelemetry(BatchTelemetryHandler callbackHandler)
 {
-    telemetry_handler_ = callbackHandler;
+    batch_telemetry_handler_ = callbackHandler;
 }
 
 void PwmEndpoint::OnChannelConfig(ChannelConfigHandler callbackHandler)
@@ -88,15 +88,15 @@ bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t 
     }
 
     switch (deserializedEnvelope->message_type()) {
-    case midi2pwm::pwm::Message::ChannelTelemetry: {
-        const auto *channelTelemetryMessage = deserializedEnvelope->message_as_ChannelTelemetry();
-        if (channelTelemetryMessage) {
-            LIBCOMM_LOG_DEBUG(TAG, "Received ChannelTelemetry: channel=%u status=%u", channelTelemetryMessage->channel_number(), static_cast<unsigned int>(channelTelemetryMessage->status()));
-            if (telemetry_handler_) {
-                LIBCOMM_LOG_DEBUG(TAG, "Telemetry: voltage=%d mV current=%d mA fault=%d", static_cast<int>(channelTelemetryMessage->voltage() * 1000), static_cast<int>(channelTelemetryMessage->current() * 1000), channelTelemetryMessage->had_fault());
-                telemetry_handler_(*channelTelemetryMessage);
+    case midi2pwm::pwm::Message::BatchTelemetry: {
+        const auto *batchMessage = deserializedEnvelope->message_as_BatchTelemetry();
+        if (batchMessage) {
+            auto channelCount = batchMessage->channels() ? batchMessage->channels()->size() : 0U;
+            LIBCOMM_LOG_DEBUG(TAG, "Received BatchTelemetry: %u channels", static_cast<unsigned int>(channelCount));
+            if (batch_telemetry_handler_) {
+                batch_telemetry_handler_(*batchMessage);
             } else {
-                LIBCOMM_LOG_WARN(TAG, "No handler registered for ChannelTelemetry");
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for BatchTelemetry");
             }
         }
         return true;
@@ -184,128 +184,24 @@ flatbuffers::DetachedBuffer buildSerializedPwmMessageEnvelope(
 
 } // namespace
 
-flatbuffers::DetachedBuffer BuildChannelTelemetryMessage(
-    std::uint16_t pwmChannelNumber,
-    midi2pwm::pwm::ChannelConfiguration channelConfigurationMode,
-    midi2pwm::pwm::ChannelStatus channelOperationalStatus,
-    std::uint16_t assignedMidiNoteNumber,
-    float measuredVoltageVolts,
-    float measuredCurrentAmps,
-    float dutyCycleNormalized,
-    midi2pwm::pwm::Polarity polarity,
-    bool channelExperiencedFaultCondition,
-    midi2pwm::pwm::OutputModeType output_mode,
-    const midi2pwm::pwm::ModeParametersUnionUnion& mode_params)
+flatbuffers::DetachedBuffer BuildBatchTelemetryMessage(
+    const midi2pwm::pwm::ChannelTelemetryT* channels,
+    std::size_t channelCount)
 {
-    flatbuffers::FlatBufferBuilder flatBuffersBuilder;
+    flatbuffers::FlatBufferBuilder flatBuffersBuilder(1024);
 
-    flatbuffers::Offset<void> mode_params_offset = 0;
-    midi2pwm::pwm::ModeParametersUnion mode_params_type = midi2pwm::pwm::ModeParametersUnion::NONE;
+    std::vector<flatbuffers::Offset<midi2pwm::pwm::ChannelTelemetry>> channelOffsets;
+    channelOffsets.reserve(channelCount);
 
-    if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::InstantModeParams) {
-        const auto* instant = mode_params.AsInstantModeParams();
-        if (instant) {
-            mode_params_offset = midi2pwm::pwm::CreateInstantModeParams(
-                flatBuffersBuilder,
-                instant->on_level,
-                instant->velocity_sensitive
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::InstantModeParams;
-        }
-    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::RampedModeParams) {
-        const auto* ramped = mode_params.AsRampedModeParams();
-        if (ramped) {
-            mode_params_offset = midi2pwm::pwm::CreateRampedModeParams(
-                flatBuffersBuilder,
-                ramped->on_level,
-                ramped->velocity_sensitive,
-                ramped->attack_time_ms,
-                ramped->release_time_ms
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::RampedModeParams;
-        }
-    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::PulseModeParams) {
-        const auto* pulse = mode_params.AsPulseModeParams();
-        if (pulse) {
-            mode_params_offset = midi2pwm::pwm::CreatePulseModeParams(
-                flatBuffersBuilder,
-                pulse->on_level,
-                pulse->velocity_sensitive,
-                pulse->attack_time_ms,
-                pulse->hold_time_ms,
-                pulse->release_time_ms
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::PulseModeParams;
-        }
-    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::ToggleModeParams) {
-        const auto* toggle = mode_params.AsToggleModeParams();
-        if (toggle) {
-            mode_params_offset = midi2pwm::pwm::CreateToggleModeParams(
-                flatBuffersBuilder,
-                toggle->on_level,
-                toggle->velocity_sensitive,
-                toggle->debounce_delay_ms
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::ToggleModeParams;
-        }
-    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::ADSRModeParams) {
-        const auto* adsr = mode_params.AsADSRModeParams();
-        if (adsr) {
-            mode_params_offset = midi2pwm::pwm::CreateADSRModeParams(
-                flatBuffersBuilder,
-                adsr->attack_level,
-                adsr->sustain_level,
-                adsr->velocity_sensitive,
-                adsr->attack_time_ms,
-                adsr->decay_time_ms,
-                adsr->release_time_ms
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::ADSRModeParams;
-        }
-    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::CCControlModeParams) {
-        const auto* cc_control = mode_params.AsCCControlModeParams();
-        if (cc_control) {
-            mode_params_offset = midi2pwm::pwm::CreateCCControlModeParams(
-                flatBuffersBuilder,
-                cc_control->cc_number,
-                cc_control->center_value,
-                cc_control->left_max_pwm,
-                cc_control->right_max_pwm,
-                cc_control->deadband_range
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::CCControlModeParams;
-        }
-    } else if (mode_params.type == midi2pwm::pwm::ModeParametersUnion::PitchBendModeParams) {
-        const auto* pitch_bend = mode_params.AsPitchBendModeParams();
-        if (pitch_bend) {
-            mode_params_offset = midi2pwm::pwm::CreatePitchBendModeParams(
-                flatBuffersBuilder,
-                pitch_bend->base_level,
-                pitch_bend->bend_range,
-                pitch_bend->unipolar,
-                pitch_bend->velocity_sensitive
-            ).Union();
-            mode_params_type = midi2pwm::pwm::ModeParametersUnion::PitchBendModeParams;
-        }
+    for (std::size_t i = 0; i < channelCount; ++i) {
+        channelOffsets.push_back(midi2pwm::pwm::ChannelTelemetry::Pack(flatBuffersBuilder, &channels[i]));
     }
 
-    auto serializedTelemetryMessage = midi2pwm::pwm::CreateChannelTelemetry(
-        flatBuffersBuilder,
-        pwmChannelNumber,
-        channelConfigurationMode,
-        channelOperationalStatus,
-        assignedMidiNoteNumber,
-        measuredVoltageVolts,
-        measuredCurrentAmps,
-        dutyCycleNormalized,
-        polarity,
-        channelExperiencedFaultCondition,
-        output_mode,
-        mode_params_type,
-        mode_params_offset);
+    auto channelsVector = flatBuffersBuilder.CreateVector(channelOffsets);
+    auto batchOffset = midi2pwm::pwm::CreateBatchTelemetry(flatBuffersBuilder, channelsVector);
 
     return buildSerializedPwmMessageEnvelope(
-        flatBuffersBuilder, midi2pwm::pwm::Message::ChannelTelemetry, serializedTelemetryMessage.Union());
+        flatBuffersBuilder, midi2pwm::pwm::Message::BatchTelemetry, batchOffset.Union());
 }
 
 flatbuffers::DetachedBuffer BuildChannelConfigMessage(

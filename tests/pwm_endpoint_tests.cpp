@@ -34,27 +34,20 @@ struct PwmLoopback {
 };
 
 struct TelemetryProbe {
-    midi2pwm::pwm::ChannelConfiguration configuration{midi2pwm::pwm::ChannelConfiguration::FullBridge};
-    midi2pwm::pwm::ChannelStatus status{midi2pwm::pwm::ChannelStatus::Inactive};
-    std::uint16_t channel{0};
-    std::uint16_t note{0};
-    float voltage{0.0F};
-    float current{0.0F};
-    bool had_fault{false};
-    midi2pwm::pwm::OutputModeType output_mode{midi2pwm::pwm::OutputModeType::Instant};
+    std::vector<midi2pwm::pwm::ChannelTelemetryT> channels;
     std::size_t call_count{0};
 
-    void Handle(const midi2pwm::pwm::ChannelTelemetry& message)
+    void Handle(const midi2pwm::pwm::BatchTelemetry& batch)
     {
         ++call_count;
-        configuration = message.configuration();
-        status = message.status();
-        channel = message.channel_number();
-        note = message.note();
-        voltage = message.voltage();
-        current = message.current();
-        had_fault = message.had_fault();
-        output_mode = message.output_mode();
+        channels.clear();
+        if (const auto* ch = batch.channels()) {
+            for (const auto* entry : *ch) {
+                midi2pwm::pwm::ChannelTelemetryT t;
+                entry->UnPackTo(&t);
+                channels.push_back(std::move(t));
+            }
+        }
     }
 };
 
@@ -184,34 +177,33 @@ TEST_CASE("PwmEndpoint routes telemetry envelopes", "[pwm_endpoint]")
     PwmEndpointHarness harness;
 
     TelemetryProbe probe;
-    harness.receiver.OnChannelTelemetry(libcomm::PwmEndpoint::ChannelTelemetryHandler::create<TelemetryProbe,
-                                                                                               &TelemetryProbe::Handle>(
-        probe));
+    harness.receiver.OnBatchTelemetry(
+        libcomm::PwmEndpoint::BatchTelemetryHandler::create<TelemetryProbe, &TelemetryProbe::Handle>(probe));
 
-    auto buffer = libcomm::BuildChannelTelemetryMessage(
-        2U,
-        midi2pwm::pwm::ChannelConfiguration::HalfBridge,
-        midi2pwm::pwm::ChannelStatus::Active,
-        57U,
-        3.3F,
-        1.2F,
-        0.5F,
-        midi2pwm::pwm::Polarity::Forward,
-        true,
-        midi2pwm::pwm::OutputModeType::Instant,
-        midi2pwm::pwm::ModeParametersUnionUnion());
+    midi2pwm::pwm::ChannelTelemetryT ch{};
+    ch.channel_number = 2U;
+    ch.configuration = midi2pwm::pwm::ChannelConfiguration::HalfBridge;
+    ch.status = midi2pwm::pwm::ChannelStatus::Active;
+    ch.note = 57U;
+    ch.voltage = 3.3F;
+    ch.current = 1.2F;
+    ch.had_fault = true;
+    ch.output_mode = midi2pwm::pwm::OutputModeType::Instant;
 
+    auto buffer = libcomm::BuildBatchTelemetryMessage(&ch, 1);
     REQUIRE(harness.sender.Send(std::move(buffer)));
 
     REQUIRE(probe.call_count == 1);
-    CHECK(probe.channel == 2U);
-    CHECK(probe.configuration == midi2pwm::pwm::ChannelConfiguration::HalfBridge);
-    CHECK(probe.status == midi2pwm::pwm::ChannelStatus::Active);
-    CHECK(probe.note == 57U);
-    CHECK(probe.voltage == Approx(3.3F));
-    CHECK(probe.current == Approx(1.2F));
-    CHECK(probe.had_fault);
-    CHECK(probe.output_mode == midi2pwm::pwm::OutputModeType::Instant);
+    REQUIRE(probe.channels.size() == 1);
+    const auto& received = probe.channels[0];
+    CHECK(received.channel_number == 2U);
+    CHECK(received.configuration == midi2pwm::pwm::ChannelConfiguration::HalfBridge);
+    CHECK(received.status == midi2pwm::pwm::ChannelStatus::Active);
+    CHECK(received.note == 57U);
+    CHECK(received.voltage == Approx(3.3F));
+    CHECK(received.current == Approx(1.2F));
+    CHECK(received.had_fault);
+    CHECK(received.output_mode == midi2pwm::pwm::OutputModeType::Instant);
 }
 
 TEST_CASE("PwmEndpoint routes config envelopes", "[pwm_endpoint]")
@@ -349,23 +341,26 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
 {
     using midi2pwm::pwm::Message;
 
-    SECTION("Channel telemetry builder")
+    SECTION("Batch telemetry builder")
     {
-        auto buffer = libcomm::BuildChannelTelemetryMessage(
-            5U,
-            midi2pwm::pwm::ChannelConfiguration::FullBridge,
-            midi2pwm::pwm::ChannelStatus::Fault,
-            88U,
-            4.1F,
-            2.0F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
-            midi2pwm::pwm::OutputModeType::Instant,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-        VerifyEnvelopeType(buffer, Message::ChannelTelemetry);
+        midi2pwm::pwm::ChannelTelemetryT ch{};
+        ch.channel_number = 5U;
+        ch.configuration = midi2pwm::pwm::ChannelConfiguration::FullBridge;
+        ch.status = midi2pwm::pwm::ChannelStatus::Fault;
+        ch.note = 88U;
+        ch.voltage = 4.1F;
+        ch.current = 2.0F;
+        ch.had_fault = false;
+        ch.output_mode = midi2pwm::pwm::OutputModeType::Instant;
+
+        auto buffer = libcomm::BuildBatchTelemetryMessage(&ch, 1);
+        VerifyEnvelopeType(buffer, Message::BatchTelemetry);
         const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
-        const auto* message = envelope->message_as_ChannelTelemetry();
+        const auto* batch = envelope->message_as_BatchTelemetry();
+        REQUIRE(batch != nullptr);
+        REQUIRE(batch->channels() != nullptr);
+        REQUIRE(batch->channels()->size() == 1U);
+        const auto* message = batch->channels()->Get(0);
         REQUIRE(message != nullptr);
         CHECK(message->channel_number() == 5U);
         CHECK(message->configuration() == midi2pwm::pwm::ChannelConfiguration::FullBridge);
@@ -473,140 +468,46 @@ TEST_CASE("Pwm message builders populate envelopes", "[pwm_endpoint]")
         CHECK(message->error_code() == 42);
     }
 
-    SECTION("Channel telemetry supports all output modes (Instant, Ramped, Pulse, Toggle, ADSR, CCControl, PitchBend)")
+    SECTION("Batch telemetry supports all output modes (Instant, Ramped, Pulse, Toggle, ADSR, CCControl, PitchBend)")
     {
-        auto buffer_instant = libcomm::BuildChannelTelemetryMessage(
-            1U,
-            midi2pwm::pwm::ChannelConfiguration::FullBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            60U,
-            5.0F,
-            0.5F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
+        const std::array<midi2pwm::pwm::OutputModeType, 7> modes = {{
             midi2pwm::pwm::OutputModeType::Instant,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-
-        VerifyEnvelopeType(buffer_instant, Message::ChannelTelemetry);
-        const auto* envelope_instant = midi2pwm::pwm::GetEnvelope(buffer_instant.data());
-        const auto* message_instant = envelope_instant->message_as_ChannelTelemetry();
-        REQUIRE(message_instant != nullptr);
-        CHECK(message_instant->output_mode() == midi2pwm::pwm::OutputModeType::Instant);
-
-        auto buffer_ramped = libcomm::BuildChannelTelemetryMessage(
-            2U,
-            midi2pwm::pwm::ChannelConfiguration::HalfBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            72U,
-            3.3F,
-            1.0F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
             midi2pwm::pwm::OutputModeType::Ramped,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-
-        VerifyEnvelopeType(buffer_ramped, Message::ChannelTelemetry);
-        const auto* envelope_ramped = midi2pwm::pwm::GetEnvelope(buffer_ramped.data());
-        const auto* message_ramped = envelope_ramped->message_as_ChannelTelemetry();
-        REQUIRE(message_ramped != nullptr);
-        CHECK(message_ramped->output_mode() == midi2pwm::pwm::OutputModeType::Ramped);
-
-        auto buffer_pulse = libcomm::BuildChannelTelemetryMessage(
-            3U,
-            midi2pwm::pwm::ChannelConfiguration::FullBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            48U,
-            12.0F,
-            2.5F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
             midi2pwm::pwm::OutputModeType::Pulse,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-
-        VerifyEnvelopeType(buffer_pulse, Message::ChannelTelemetry);
-        const auto* envelope_pulse = midi2pwm::pwm::GetEnvelope(buffer_pulse.data());
-        const auto* message_pulse = envelope_pulse->message_as_ChannelTelemetry();
-        REQUIRE(message_pulse != nullptr);
-        CHECK(message_pulse->output_mode() == midi2pwm::pwm::OutputModeType::Pulse);
-
-        auto buffer_toggle = libcomm::BuildChannelTelemetryMessage(
-            4U,
-            midi2pwm::pwm::ChannelConfiguration::HalfBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            36U,
-            3.3F,
-            0.2F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
             midi2pwm::pwm::OutputModeType::Toggle,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-
-        VerifyEnvelopeType(buffer_toggle, Message::ChannelTelemetry);
-        const auto* envelope_toggle = midi2pwm::pwm::GetEnvelope(buffer_toggle.data());
-        const auto* message_toggle = envelope_toggle->message_as_ChannelTelemetry();
-        REQUIRE(message_toggle != nullptr);
-        CHECK(message_toggle->output_mode() == midi2pwm::pwm::OutputModeType::Toggle);
-
-        auto buffer_adsr = libcomm::BuildChannelTelemetryMessage(
-            5U,
-            midi2pwm::pwm::ChannelConfiguration::FullBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            64U,
-            12.0F,
-            1.5F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
             midi2pwm::pwm::OutputModeType::ADSR,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-
-        VerifyEnvelopeType(buffer_adsr, Message::ChannelTelemetry);
-        const auto* envelope_adsr = midi2pwm::pwm::GetEnvelope(buffer_adsr.data());
-        const auto* message_adsr = envelope_adsr->message_as_ChannelTelemetry();
-        REQUIRE(message_adsr != nullptr);
-        CHECK(message_adsr->output_mode() == midi2pwm::pwm::OutputModeType::ADSR);
-
-        auto buffer_cccontrol = libcomm::BuildChannelTelemetryMessage(
-            6U,
-            midi2pwm::pwm::ChannelConfiguration::HalfBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            0U,
-            5.0F,
-            0.8F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
             midi2pwm::pwm::OutputModeType::CCControl,
-            midi2pwm::pwm::ModeParametersUnionUnion());
-
-        VerifyEnvelopeType(buffer_cccontrol, Message::ChannelTelemetry);
-        const auto* envelope_cccontrol = midi2pwm::pwm::GetEnvelope(buffer_cccontrol.data());
-        const auto* message_cccontrol = envelope_cccontrol->message_as_ChannelTelemetry();
-        REQUIRE(message_cccontrol != nullptr);
-        CHECK(message_cccontrol->output_mode() == midi2pwm::pwm::OutputModeType::CCControl);
-
-        auto buffer_pitchbend = libcomm::BuildChannelTelemetryMessage(
-            7U,
-            midi2pwm::pwm::ChannelConfiguration::FullBridge,
-            midi2pwm::pwm::ChannelStatus::Active,
-            48U,
-            9.0F,
-            1.2F,
-            0.5F,
-            midi2pwm::pwm::Polarity::Forward,
-            false,
             midi2pwm::pwm::OutputModeType::PitchBend,
-            midi2pwm::pwm::ModeParametersUnionUnion());
+        }};
 
-        VerifyEnvelopeType(buffer_pitchbend, Message::ChannelTelemetry);
-        const auto* envelope_pitchbend = midi2pwm::pwm::GetEnvelope(buffer_pitchbend.data());
-        const auto* message_pitchbend = envelope_pitchbend->message_as_ChannelTelemetry();
-        REQUIRE(message_pitchbend != nullptr);
-        CHECK(message_pitchbend->output_mode() == midi2pwm::pwm::OutputModeType::PitchBend);
+        std::array<midi2pwm::pwm::ChannelTelemetryT, 7> channels{};
+        for (std::size_t i = 0; i < modes.size(); ++i) {
+            channels[i].channel_number = static_cast<std::uint16_t>(i + 1);
+            channels[i].configuration = (i % 2 == 0)
+                ? midi2pwm::pwm::ChannelConfiguration::FullBridge
+                : midi2pwm::pwm::ChannelConfiguration::HalfBridge;
+            channels[i].status = midi2pwm::pwm::ChannelStatus::Active;
+            channels[i].note = static_cast<std::uint16_t>(60U + i);
+            channels[i].voltage = 5.0F;
+            channels[i].current = 0.5F;
+            channels[i].had_fault = false;
+            channels[i].output_mode = modes[i];
+        }
+
+        auto buffer = libcomm::BuildBatchTelemetryMessage(channels.data(), channels.size());
+        VerifyEnvelopeType(buffer, Message::BatchTelemetry);
+        const auto* envelope = midi2pwm::pwm::GetEnvelope(buffer.data());
+        const auto* batch = envelope->message_as_BatchTelemetry();
+        REQUIRE(batch != nullptr);
+        REQUIRE(batch->channels() != nullptr);
+        REQUIRE(batch->channels()->size() == 7U);
+
+        for (std::size_t i = 0; i < modes.size(); ++i) {
+            const auto* ch = batch->channels()->Get(static_cast<flatbuffers::uoffset_t>(i));
+            REQUIRE(ch != nullptr);
+            CHECK(ch->channel_number() == static_cast<std::uint16_t>(i + 1));
+            CHECK(ch->output_mode() == modes[i]);
+        }
     }
 }
 
