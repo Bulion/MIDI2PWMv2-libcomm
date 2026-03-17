@@ -21,5 +21,9 @@ table ChannelConfig {
   release_action: ReleaseAction = ActiveBrake;
 }
 
+table BatchConfig {
+  channels: [ChannelConfig];
+}
+
 root_type ChannelConfig;
 file_identifier "PWCF";

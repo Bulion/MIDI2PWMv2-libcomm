@@ -41,6 +41,11 @@ void PwmEndpoint::OnChannelConfig(ChannelConfigHandler callbackHandler)
     config_handler_ = callbackHandler;
 }
 
+void PwmEndpoint::OnBatchConfig(BatchConfigHandler callbackHandler)
+{
+    batch_config_handler_ = callbackHandler;
+}
+
 void PwmEndpoint::OnFaultLog(FaultLogHandler callbackHandler)
 {
     fault_log_handler_ = callbackHandler;
@@ -110,6 +115,19 @@ bool PwmEndpoint::HandleFrame(const std::uint8_t *framePayloadData, std::size_t 
                 config_handler_(*channelConfigMessage);
             } else {
                 LIBCOMM_LOG_WARN(TAG, "No handler registered for ChannelConfig");
+            }
+        }
+        return true;
+    }
+    case midi2pwm::pwm::Message::BatchConfig: {
+        const auto *batchConfigMessage = deserializedEnvelope->message_as_BatchConfig();
+        if (batchConfigMessage) {
+            auto configCount = batchConfigMessage->channels() ? batchConfigMessage->channels()->size() : 0U;
+            LIBCOMM_LOG_INFO(TAG, "Received BatchConfig: %u channels", static_cast<unsigned int>(configCount));
+            if (batch_config_handler_) {
+                batch_config_handler_(*batchConfigMessage);
+            } else {
+                LIBCOMM_LOG_WARN(TAG, "No handler registered for BatchConfig");
             }
         }
         return true;
@@ -235,6 +253,26 @@ flatbuffers::DetachedBuffer BuildChannelConfigMessageFromNative(const midi2pwm::
 
     return buildSerializedPwmMessageEnvelope(
         flatBuffersBuilder, midi2pwm::pwm::Message::ChannelConfig, serializedConfigMessage.Union());
+}
+
+flatbuffers::DetachedBuffer BuildBatchConfigMessage(
+    const midi2pwm::pwm::ChannelConfigT* configs,
+    std::size_t configCount)
+{
+    flatbuffers::FlatBufferBuilder flatBuffersBuilder(2048);
+
+    std::vector<flatbuffers::Offset<midi2pwm::pwm::ChannelConfig>> configOffsets;
+    configOffsets.reserve(configCount);
+
+    for (std::size_t i = 0; i < configCount; ++i) {
+        configOffsets.push_back(midi2pwm::pwm::ChannelConfig::Pack(flatBuffersBuilder, &configs[i]));
+    }
+
+    auto configsVector = flatBuffersBuilder.CreateVector(configOffsets);
+    auto batchOffset = midi2pwm::pwm::CreateBatchConfig(flatBuffersBuilder, configsVector);
+
+    return buildSerializedPwmMessageEnvelope(
+        flatBuffersBuilder, midi2pwm::pwm::Message::BatchConfig, batchOffset.Union());
 }
 
 flatbuffers::DetachedBuffer BuildFaultLogMessage(

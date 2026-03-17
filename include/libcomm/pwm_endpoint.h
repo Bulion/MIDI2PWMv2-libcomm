@@ -16,6 +16,7 @@ public:
     using WriteCallback = FrameTransport::WriteCallback;
     using BatchTelemetryHandler = etl::delegate<void(const midi2pwm::pwm::BatchTelemetry&)>;
     using ChannelConfigHandler = etl::delegate<void(const midi2pwm::pwm::ChannelConfig&)>;
+    using BatchConfigHandler = etl::delegate<void(const midi2pwm::pwm::BatchConfig&)>;
     using FaultLogHandler = etl::delegate<void(const midi2pwm::pwm::FaultLog&)>;
     using FaultControlHandler = etl::delegate<void(const midi2pwm::pwm::FaultControlCommand&)>;
     using HeartBeatHandler = etl::delegate<void(const midi2pwm::pwm::HeartBeat&)>;
@@ -32,6 +33,7 @@ public:
 
     void OnBatchTelemetry(BatchTelemetryHandler handler);
     void OnChannelConfig(ChannelConfigHandler handler);
+    void OnBatchConfig(BatchConfigHandler handler);
     void OnFaultLog(FaultLogHandler handler);
     void OnFaultControl(FaultControlHandler handler);
     void OnHeartBeat(HeartBeatHandler handler);
@@ -44,6 +46,7 @@ private:
     FrameTransport transport_;
     BatchTelemetryHandler batch_telemetry_handler_;
     ChannelConfigHandler config_handler_;
+    BatchConfigHandler batch_config_handler_;
     FaultLogHandler fault_log_handler_;
     FaultControlHandler fault_control_handler_;
     HeartBeatHandler heartbeat_handler_;
@@ -62,6 +65,10 @@ flatbuffers::DetachedBuffer BuildChannelConfigMessage(std::uint16_t channel_numb
                                                       float max_point);
 
 flatbuffers::DetachedBuffer BuildChannelConfigMessageFromNative(const midi2pwm::pwm::ChannelConfigT &config);
+
+flatbuffers::DetachedBuffer BuildBatchConfigMessage(
+    const midi2pwm::pwm::ChannelConfigT* configs,
+    std::size_t configCount);
 
 struct FaultLogEntryData {
     std::uint32_t timestamp_ms;

@@ -10,6 +10,7 @@ namespace midi2pwm.pwm;
 
 union Message {
   ChannelConfig,
+  BatchConfig,
   BatchTelemetry,
   FaultLog,
   FaultControlCommand,
