@@ -21,6 +21,7 @@ table ChannelTelemetry {
 
 table BatchTelemetry {
   channels: [ChannelTelemetry];
+  input_voltage: float;
 }
 
 root_type ChannelTelemetry;

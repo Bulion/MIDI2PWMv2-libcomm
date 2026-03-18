@@ -204,7 +204,8 @@ flatbuffers::DetachedBuffer buildSerializedPwmMessageEnvelope(
 
 flatbuffers::DetachedBuffer BuildBatchTelemetryMessage(
     const midi2pwm::pwm::ChannelTelemetryT* channels,
-    std::size_t channelCount)
+    std::size_t channelCount,
+    float inputVoltage)
 {
     flatbuffers::FlatBufferBuilder flatBuffersBuilder(1024);
 
@@ -216,7 +217,7 @@ flatbuffers::DetachedBuffer BuildBatchTelemetryMessage(
     }
 
     auto channelsVector = flatBuffersBuilder.CreateVector(channelOffsets);
-    auto batchOffset = midi2pwm::pwm::CreateBatchTelemetry(flatBuffersBuilder, channelsVector);
+    auto batchOffset = midi2pwm::pwm::CreateBatchTelemetry(flatBuffersBuilder, channelsVector, inputVoltage);
 
     return buildSerializedPwmMessageEnvelope(
         flatBuffersBuilder, midi2pwm::pwm::Message::BatchTelemetry, batchOffset.Union());

@@ -55,7 +55,8 @@ private:
 
 flatbuffers::DetachedBuffer BuildBatchTelemetryMessage(
     const midi2pwm::pwm::ChannelTelemetryT* channels,
-    std::size_t channelCount);
+    std::size_t channelCount,
+    float inputVoltage = 0.0f);
 
 flatbuffers::DetachedBuffer BuildChannelConfigMessage(std::uint16_t channel_number,
                                                       midi2pwm::pwm::ChannelConfiguration configuration,
