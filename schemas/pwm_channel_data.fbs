@@ -17,6 +17,9 @@ table ChannelTelemetry {
   had_fault: bool = false;
   output_mode: OutputModeType = Instant;
   mode_params: ModeParametersUnion;
+  note_b: uint16 = 255;
+  status_a: ChannelStatus = Inactive;
+  status_b: ChannelStatus = Inactive;
 }
 
 table BatchTelemetry {

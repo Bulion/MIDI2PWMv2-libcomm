@@ -19,6 +19,7 @@ table ChannelConfig {
 
   polarity: Polarity = Forward;
   release_action: ReleaseAction = ActiveBrake;
+  note_b: uint16 = 255;
 }
 
 table BatchConfig {
